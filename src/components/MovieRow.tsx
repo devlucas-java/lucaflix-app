@@ -6,12 +6,26 @@ import {
   TouchableOpacity,
   Dimensions,
   ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
-import { ChevronLeft, ChevronRight } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 import type { MovieSimpleDTO, SerieSimpleDTO, AnimeSimpleDTO } from '../types/mediaTypes';
 import { MovieCard } from './MovieCard';
 
 const { width } = Dimensions.get('window');
+
+// Custom SVG Icons
+const ChevronLeft = ({ size = 24, color = "#fff" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <Path d="M15 18l-6-6 6-6" />
+  </Svg>
+);
+
+const ChevronRight = ({ size = 24, color = "#fff" }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
+    <Path d="M9 18l6-6-6-6" />
+  </Svg>
+);
 
 interface MovieRowProps {
   title: string;
@@ -120,15 +134,18 @@ export const MovieRow: React.FC<MovieRowProps> = ({
     return Array.from({ length: skeletonCount }).map((_, index) => (
       <View 
         key={`skeleton-${index}`}
-        className="bg-gray-800 rounded-lg mr-3 animate-pulse"
-        style={{
-          width: cardWidth,
-          height: isBanner ? 120 : (isBigCard || isLarge ? 270 : 210),
-        }}
+        style={[
+          styles.skeletonCard,
+          {
+            width: cardWidth,
+            height: isBanner ? 120 : (isBigCard || isLarge ? 270 : 210),
+            marginRight: 12,
+          }
+        ]}
       >
-        <View className="p-2">
-          <View className="h-4 bg-gray-700 rounded mb-2" />
-          <View className="h-3 bg-gray-700 rounded w-3/4" />
+        <View style={styles.skeletonContent}>
+          <View style={styles.skeletonTitle} />
+          <View style={styles.skeletonSubtitle} />
         </View>
       </View>
     ));
@@ -136,19 +153,19 @@ export const MovieRow: React.FC<MovieRowProps> = ({
 
   // Estado de loading completo
   const renderLoadingState = () => (
-    <View className="px-4 mb-8">
-      <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-white text-xl font-bold">
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>
           {title}
           {isTop10 && (
-            <Text className="ml-2 text-sm font-normal text-gray-400">
+            <Text style={styles.subtitle}>
               {' '}Hoje no Brasil
             </Text>
           )}
         </Text>
       </View>
       
-      <View className="flex-row">
+      <View style={styles.loadingRow}>
         {renderLoadingSkeleton()}
       </View>
     </View>
@@ -156,23 +173,23 @@ export const MovieRow: React.FC<MovieRowProps> = ({
 
   // Empty state
   const renderEmptyState = () => (
-    <View className="px-4 py-6">
-      <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-lg font-semibold text-white">
+    <View style={styles.emptyContainer}>
+      <View style={styles.header}>
+        <Text style={styles.title}>
           {title}
           {isTop10 && (
-            <Text className="ml-2 text-sm font-normal text-gray-400">
+            <Text style={styles.subtitle}>
               {' '}Hoje no Brasil
             </Text>
           )}
         </Text>
-        <Text className="text-xs text-gray-500">
+        <Text style={styles.emptyCount}>
           0 itens
         </Text>
       </View>
-      <View className="bg-gray-900/20 rounded-lg border border-gray-800 py-8 items-center">
-        <Text className="text-3xl mb-2 opacity-50">🎬</Text>
-        <Text className="text-sm text-gray-500">Nenhum conteúdo disponível</Text>
+      <View style={styles.emptyStateCard}>
+        <Text style={styles.emptyIcon}>🎬</Text>
+        <Text style={styles.emptyText}>Nenhum conteúdo disponível</Text>
       </View>
     </View>
   );
@@ -188,21 +205,21 @@ export const MovieRow: React.FC<MovieRowProps> = ({
   }
 
   return (
-    <View className={`relative ${isBanner ? '-mt-32' : ''} mb-6`}>
+    <View style={[styles.rowContainer, isBanner && styles.bannerRow]}>
       {/* Section Title */}
-      <View className={`flex-row items-center justify-between mb-3 px-4 ${isBanner ? 'relative z-10' : ''}`}>
-        <Text className="text-lg font-semibold text-white">
+      <View style={[styles.header, isBanner && styles.bannerHeader]}>
+        <Text style={styles.title}>
           {title}
           {isTop10 && (
-            <Text className="ml-2 text-sm font-normal text-gray-400">
+            <Text style={styles.subtitle}>
               {' '}Hoje no Brasil
             </Text>
           )}
         </Text>
         
         {/* Contador de itens */}
-        <View className="flex-row items-center gap-2">
-          <Text className="text-xs text-gray-500">
+        <View style={styles.counterContainer}>
+          <Text style={styles.counterText}>
             {formatCount(movies.length)}
             {totalCount !== undefined && totalCount > movies.length && (
               <Text>/{formatCount(totalCount)}</Text>
@@ -213,9 +230,9 @@ export const MovieRow: React.FC<MovieRowProps> = ({
           
           {/* Indicador de carregamento */}
           {loadingMore && (
-            <View className="flex-row items-center gap-1">
+            <View style={styles.loadingIndicator}>
               <ActivityIndicator size="small" color="#60A5FA" />
-              <Text className="text-blue-400 text-xs">Carregando...</Text>
+              <Text style={styles.loadingText}>Carregando...</Text>
             </View>
           )}
         </View>
@@ -228,11 +245,11 @@ export const MovieRow: React.FC<MovieRowProps> = ({
           {showLeftArrow && (
             <TouchableOpacity
               onPress={() => scroll('left')}
-              className="absolute left-2 top-1/2 z-40 bg-black/80 rounded-full p-2 border border-gray-600/30"
-              style={{ 
-                transform: [{ translateY: -20 }],
-                top: isTop10 ? '58%' : '54%',
-              }}
+              style={[
+                styles.arrowButton,
+                styles.leftArrow,
+                { top: isTop10 ? '58%' : '54%' }
+              ]}
             >
               <ChevronLeft size={18} color="white" />
             </TouchableOpacity>
@@ -242,11 +259,11 @@ export const MovieRow: React.FC<MovieRowProps> = ({
           {showRightArrow && (
             <TouchableOpacity
               onPress={() => scroll('right')}
-              className="absolute right-2 top-1/2 z-40 bg-black/80 rounded-full p-2 border border-gray-600/30"
-              style={{ 
-                transform: [{ translateY: -20 }],
-                top: isTop10 ? '58%' : '54%',
-              }}
+              style={[
+                styles.arrowButton,
+                styles.rightArrow,
+                { top: isTop10 ? '58%' : '54%' }
+              ]}
             >
               <ChevronRight size={18} color="white" />
             </TouchableOpacity>
@@ -255,7 +272,7 @@ export const MovieRow: React.FC<MovieRowProps> = ({
       )}
 
       {/* Movies Container */}
-      <View className={`px-4 ${isBanner ? 'relative z-10' : ''}`}>
+      <View style={[styles.moviesContainer, isBanner && styles.bannerMoviesContainer]}>
         <ScrollView
           ref={scrollRef}
           horizontal
@@ -266,7 +283,7 @@ export const MovieRow: React.FC<MovieRowProps> = ({
           onLayout={(event) => {
             setScrollViewWidth(event.nativeEvent.layout.width);
           }}
-          className="py-2"
+          style={styles.scrollView}
         >
           {movies.map((movie, index) => {
             // Validação de movie
@@ -278,8 +295,7 @@ export const MovieRow: React.FC<MovieRowProps> = ({
             return (
               <View 
                 key={`${movie.id}-${index}`} 
-                className="mr-3"
-                style={{ width: cardWidth }}
+                style={[styles.movieCardContainer, { width: cardWidth }]}
               >
                 <MovieCard
                   media={movie}
@@ -300,14 +316,16 @@ export const MovieRow: React.FC<MovieRowProps> = ({
           {/* Indicador de fim do conteúdo */}
           {!hasMore && totalCount !== undefined && movies.length >= totalCount && (
             <View 
-              className="flex items-center justify-center bg-gray-900/20 rounded-lg border border-gray-700 mr-3"
-              style={{
-                width: cardWidth,
-                height: isBanner ? 120 : (isBigCard || isLarge ? 270 : 210),
-              }}
+              style={[
+                styles.endIndicator,
+                {
+                  width: cardWidth,
+                  height: isBanner ? 120 : (isBigCard || isLarge ? 270 : 210),
+                }
+              ]}
             >
-              <Text className="text-gray-400 text-sm mb-2">✨</Text>
-              <Text className="text-gray-500 text-xs text-center">
+              <Text style={styles.endIcon}>✨</Text>
+              <Text style={styles.endText}>
                 Todos os títulos{'\n'}carregados
               </Text>
             </View>
@@ -317,8 +335,167 @@ export const MovieRow: React.FC<MovieRowProps> = ({
 
       {/* Gradiente para o banner sobrepor o hero section */}
       {isBanner && (
-        <View className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
+        <View style={styles.bannerGradient} />
       )}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 16,
+    marginBottom: 32,
+  },
+  rowContainer: {
+    position: 'relative',
+    marginBottom: 24,
+  },
+  bannerRow: {
+    marginTop: -128,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  bannerHeader: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  subtitle: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: 'normal',
+    color: '#9CA3AF',
+  },
+  counterContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  counterText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  loadingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  loadingText: {
+    color: '#60A5FA',
+    fontSize: 12,
+  },
+  emptyContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
+  emptyCount: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  emptyStateCard: {
+    backgroundColor: 'rgba(17, 24, 39, 0.2)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#374151',
+    paddingVertical: 32,
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    fontSize: 48,
+    opacity: 0.5,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  loadingRow: {
+    flexDirection: 'row',
+  },
+  skeletonCard: {
+    backgroundColor: '#374151',
+    borderRadius: 8,
+  },
+  skeletonContent: {
+    padding: 8,
+  },
+  skeletonTitle: {
+    height: 16,
+    backgroundColor: '#4B5563',
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  skeletonSubtitle: {
+    height: 12,
+    backgroundColor: '#4B5563',
+    borderRadius: 4,
+    width: '75%',
+  },
+  arrowButton: {
+    position: 'absolute',
+    zIndex: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    borderRadius: 20,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(107, 114, 128, 0.3)',
+    transform: [{ translateY: -20 }],
+  },
+  leftArrow: {
+    left: 8,
+  },
+  rightArrow: {
+    right: 8,
+  },
+  moviesContainer: {
+    paddingHorizontal: 16,
+  },
+  bannerMoviesContainer: {
+    position: 'relative',
+    zIndex: 10,
+  },
+  scrollView: {
+    paddingVertical: 8,
+  },
+  movieCardContainer: {
+    marginRight: 12,
+  },
+  endIndicator: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(17, 24, 39, 0.2)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+    marginRight: 12,
+  },
+  endIcon: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  endText: {
+    color: '#6B7280',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  bannerGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    // This would be a gradient in a real implementation
+    // For now, it's just a transparent overlay
+  },
+});

@@ -2,8 +2,8 @@ import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import theme from "../theme/theme";
 
-//export const API_BASE_URL = "https://lucaflix-backend.fly.dev/api";
-export const API_BASE_URL = "http://localhost:8080/api";
+export const API_BASE_URL = "https://lucaflix-backend.fly.dev/api";
+//export const API_BASE_URL = "http://localhost:8080/api";
 
 // Configuração base da API
 const api = axios.create({

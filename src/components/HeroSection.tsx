@@ -9,7 +9,8 @@ import {
   Alert,
 } from "react-native";
 import { WebView } from "react-native-webview";
-import Icon from "react-native-vector-icons";
+// Fix: Import from specific icon family instead of root package
+import Icon from "react-native-vector-icons/MaterialIcons";
 import type {
   MovieCompleteDTO,
   SerieCompleteDTO,
@@ -145,6 +146,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       }&controls=0&loop=1&playlist=${videoId}&modestbranding=1&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&fs=0`
     : null;
 
+  // Add null check for media
   if (!media) {
     return (
       <View className="flex-1 bg-gray-900 justify-center items-center">

@@ -23,7 +23,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error filtering movies:', error);
       throw new Error('Failed to filter movies');
     }
   }
@@ -39,7 +38,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching all movies:', error);
       throw new Error('Failed to fetch movies');
     }
   }
@@ -52,7 +50,6 @@ export class MovieService {
       const response = await api.get(`${this.baseUrl}/top10`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching top 10 movies:', error);
       throw new Error('Failed to fetch top 10 movies');
     }
   }
@@ -65,7 +62,6 @@ export class MovieService {
       const response = await api.get(`${this.baseUrl}/${id}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching movie with id ${id}:`, error);
       throw new Error(`Failed to fetch movie with id ${id}`);
     }
   }
@@ -78,7 +74,6 @@ export class MovieService {
       const response = await api.post(`${this.baseUrl}/${id}/like`);
       return response.data;
     } catch (error) {
-      console.error('Error toggling movie like:', error);
       throw new Error('Failed to toggle like');
     }
   }
@@ -91,7 +86,6 @@ export class MovieService {
       const response = await api.post(`${this.baseUrl}/${id}/my-list`);
       return response.data;
     } catch (error) {
-      console.error('Error toggling my list:', error);
       throw new Error('Failed to toggle my list');
     }
   }
@@ -106,7 +100,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching popular movies:', error);
       throw new Error('Failed to fetch popular movies');
     }
   }
@@ -121,7 +114,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching new releases:', error);
       throw new Error('Failed to fetch new releases');
     }
   }
@@ -140,7 +132,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching movies by category ${categoria}:`, error);
       throw new Error(`Failed to fetch movies by category ${categoria}`);
     }
   }
@@ -155,7 +146,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching high rated movies:', error);
       throw new Error('Failed to fetch high rated movies');
     }
   }
@@ -170,7 +160,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching movie recommendations:', error);
       throw new Error('Failed to fetch recommendations');
     }
   }
@@ -189,7 +178,6 @@ export class MovieService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching similar movies for id ${id}:`, error);
       throw new Error(`Failed to fetch similar movies for id ${id}`);
     }
   }

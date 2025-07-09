@@ -2,7 +2,7 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, StyleSheet } from 'react-native';
 
 // Importar suas telas
@@ -15,11 +15,9 @@ import { MyListScreen } from '~/screens/MyListScreen';
 import UserProfileScreen from '~/screens/UserProfileScreen';
 import SearchScreen from '~/screens/SearchScreen';
 
-
-
 // Importar componentes
-import { CustomHeader, MediaHeader } from '~/components/headers/CustomHeader';
-import { CustomDrawerContent } from '~/components/headers/CustomDrawerContent';
+import { CustomHeader, MediaHeader, SearchHeader, HomeHeader, ProfileHeader } from '~/components/headers/CustomHeader';
+import { NetflixTabBar } from '~/components/headers/NetflixTabBar';
 import theme from '~/theme/theme';
 
 // Tipos para navegação
@@ -27,40 +25,52 @@ export type RootStackParamList = {
   Splash: undefined;
   Login: undefined;
   Register: undefined;
-  MainDrawer: undefined;
+  MainTabs: undefined;
   MediaDetail: { 
     media: any; // MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO
   };
   AdminDashboard: undefined;
 };
 
-export type DrawerParamList = {
+export type TabParamList = {
   Home: undefined;
-  Movies: undefined;
-  Series: undefined;
-  Animes: undefined;
   Search: undefined;
   MyList: undefined;
   Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Drawer = createDrawerNavigator<DrawerParamList>();
+const Tab = createBottomTabNavigator<TabParamList>();
 
-// Screen wrapper with header - CORRIGIDO
-const ScreenWithHeader: React.FC<{ 
+// Screen wrapper with specific headers
+const ScreenWithSpecificHeader: React.FC<{ 
   component: React.ComponentType<any>; 
-  title: string; 
-}> = ({ component: Component, title }) => {
-  return ({ navigation, route }: any) => (
-    <View style={styles.screenContainer}>
-      <CustomHeader navigation={navigation} title={title} />
-      <Component navigation={navigation} route={route} />
-    </View>
-  );
+  headerType: 'home' | 'search' | 'profile' | 'default';
+}> = ({ component: Component, headerType }) => {
+  return ({ navigation, route }: any) => {
+    const renderHeader = () => {
+      switch (headerType) {
+        case 'home':
+          return <HomeHeader navigation={navigation} />;
+        case 'search':
+          return <SearchHeader navigation={navigation} />;
+        case 'profile':
+          return <ProfileHeader navigation={navigation} />;
+        default:
+          return <CustomHeader navigation={navigation} title="" />;
+      }
+    };
+
+    return (
+      <View style={styles.screenContainer}>
+        {renderHeader()}
+        <Component navigation={navigation} route={route} />
+      </View>
+    );
+  };
 };
 
-// Media Screen wrapper with custom header - CORRIGIDO
+// Media Screen wrapper with custom header
 const MediaScreenWithHeader: React.FC<any> = ({ navigation, route }) => {
   const { media } = route.params;
   
@@ -72,63 +82,69 @@ const MediaScreenWithHeader: React.FC<any> = ({ navigation, route }) => {
   );
 };
 
-// Main Drawer Navigator - CORRIGIDO
-const MainDrawer: React.FC = () => {
+// Main Tab Navigator
+const MainTabNavigator: React.FC = () => {
   return (
-    <Drawer.Navigator
+    <Tab.Navigator
       initialRouteName="Home"
-      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      tabBar={(props) => <NetflixTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        drawerStyle: {
-          backgroundColor: theme.colors.surface,
-          width: 280,
-        },
-        drawerType: 'slide',
-        overlayColor: 'rgba(0,0,0,0.5)',
       }}
     >
-      <Drawer.Screen 
+      <Tab.Screen 
         name="Home" 
-        component={ScreenWithHeader({ 
+        component={ScreenWithSpecificHeader({ 
           component: HomeScreen, 
-          title: "Início" 
+          headerType: 'home'
         })} 
+        options={{
+          tabBarLabel: 'Início',
+        }}
       />
       
-      <Drawer.Screen 
+      <Tab.Screen 
         name="Search" 
-        component={ScreenWithHeader({ 
+        component={ScreenWithSpecificHeader({ 
           component: SearchScreen, 
-          title: "Buscar" 
+          headerType: 'search'
         })} 
+        options={{
+          tabBarLabel: 'Buscar',
+        }}
       />
       
-      <Drawer.Screen 
+      <Tab.Screen 
         name="MyList" 
-        component={ScreenWithHeader({ 
+        component={ScreenWithSpecificHeader({ 
           component: MyListScreen, 
-          title: "Minha Lista" 
+          headerType: 'default'
         })} 
+        options={{
+          tabBarLabel: 'Minha Lista',
+        }}
       />
       
-      <Drawer.Screen 
+      <Tab.Screen 
         name="Profile" 
-        component={ScreenWithHeader({ 
+        component={ScreenWithSpecificHeader({ 
           component: UserProfileScreen, 
-          title: "Perfil" 
+          headerType: 'profile'
         })} 
+        options={{
+          tabBarLabel: 'Perfil',
+        }}
       />
-    </Drawer.Navigator>
+    </Tab.Navigator>
   );
 };
 
-// Router principal - CORRIGIDO
+// Router principal
 const Router: React.FC = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="MainDrawer"
+        initialRouteName="MainTabs"
         screenOptions={{
           headerShown: false,
           navigationBarColor: theme.colors.background,
@@ -163,10 +179,10 @@ const Router: React.FC = () => {
           }}
         />
 
-        {/* Main App Routes - Drawer */}
+        {/* Main App Routes - Bottom Tabs */}
         <Stack.Screen 
-          name="MainDrawer" 
-          component={MainDrawer}
+          name="MainTabs" 
+          component={MainTabNavigator}
           options={{
             gestureEnabled: false,
           }}

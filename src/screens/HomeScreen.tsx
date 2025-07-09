@@ -486,7 +486,7 @@ export const HomeScreen: React.FC = () => {
             title="Séries Populares"
             loadData={loadPopularSeries}
             onInfo={handleInfo}
-            isBigCard={true}
+            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={700}
           />
@@ -511,7 +511,7 @@ export const HomeScreen: React.FC = () => {
             title="Séries Bem Avaliadas"
             loadData={loadHighRatedSeries}
             onInfo={handleInfo}
-            isBigCard={true}
+            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={1300}
           />
@@ -520,7 +520,7 @@ export const HomeScreen: React.FC = () => {
             title="Séries Recentes"
             loadData={loadRecentSeries}
             onInfo={handleInfo}
-            isBigCard={true}
+            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={1500}
           />
@@ -554,7 +554,7 @@ export const HomeScreen: React.FC = () => {
             title="Séries de Comédia"
             loadData={loadComedySeries}
             onInfo={handleInfo}
-            isBigCard={true}
+            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={2300}
           />
@@ -571,7 +571,7 @@ export const HomeScreen: React.FC = () => {
             title="Séries de Drama"
             loadData={loadDramaSeries}
             onInfo={handleInfo}
-            isBigCard={true}
+            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={2700}
           />

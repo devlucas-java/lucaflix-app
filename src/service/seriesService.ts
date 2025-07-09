@@ -18,7 +18,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching all series:', error);
       throw new Error('Failed to fetch series');
     }
   }
@@ -31,7 +30,6 @@ export class SerieService {
       const response = await api.get(`${this.baseUrl}/top10`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching top 10 series:', error);
       throw new Error('Failed to fetch top 10 series');
     }
   }
@@ -44,7 +42,6 @@ export class SerieService {
       const response = await api.get(`${this.baseUrl}/${id}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching serie with id ${id}:`, error);
       throw new Error(`Failed to fetch serie with id ${id}`);
     }
   }
@@ -57,7 +54,6 @@ export class SerieService {
       const response = await api.post(`${this.baseUrl}/${id}/like`);
       return response.data;
     } catch (error) {
-      console.error('Error toggling serie like:', error);
       throw new Error('Failed to toggle like');
     }
   }
@@ -70,7 +66,6 @@ export class SerieService {
       const response = await api.post(`${this.baseUrl}/${id}/my-list`);
       return response.data;
     } catch (error) {
-      console.error('Error toggling serie my list:', error);
       throw new Error('Failed to toggle my list');
     }
   }
@@ -89,7 +84,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching series by category ${categoria}:`, error);
       throw new Error(`Failed to fetch series by category ${categoria}`);
     }
   }
@@ -104,7 +98,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching popular series:', error);
       throw new Error('Failed to fetch popular series');
     }
   }
@@ -119,7 +112,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching high rated series:', error);
       throw new Error('Failed to fetch high rated series');
     }
   }
@@ -134,7 +126,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching recent series:', error);
       throw new Error('Failed to fetch recent series');
     }
   }
@@ -153,7 +144,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching series by year ${year}:`, error);
       throw new Error(`Failed to fetch series by year ${year}`);
     }
   }
@@ -172,7 +162,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching similar series for id ${id}:`, error);
       throw new Error(`Failed to fetch similar series for id ${id}`);
     }
   }
@@ -187,7 +176,6 @@ export class SerieService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching serie recommendations:', error);
       throw new Error('Failed to fetch recommendations');
     }
   }
