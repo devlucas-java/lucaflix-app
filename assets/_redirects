@@ -1,0 +1,3 @@
+/sitemap.xml     https://lucaflix-backend.fly.dev/api/sitemap.xml     200
+/sitemap/urls      https://lucaflix-backend.fly.dev/api/sitemap/xml      200
+/*               /index.html      200
