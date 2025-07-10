@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Dashboard, SectionType } from './dashboard/Dashboard';
-import { HeaderAdmin } from '../../components/headers/CustomDrawerContent';
+import { HeaderAdmin } from '../../routes/headers/CustomDrawerContent';
 
 // Página principal do Admin que gerencia o estado das seções
 export const AdminMainPage: React.FC = () => {

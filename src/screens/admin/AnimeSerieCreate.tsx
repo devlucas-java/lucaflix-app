@@ -1,6 +1,6 @@
 import React from 'react';
 import { AdminSerieForm } from './adminMedia/AdminSerieForm';
-import { HeaderAdmin } from '../../components/headers/CustomDrawerContent';
+import { HeaderAdmin } from '../../routes/headers/CustomDrawerContent';
 import { Footer } from '../../components/Footer';
 
 export const AdminSerieCreate: React.FC = () => {

@@ -1,5 +1,7 @@
 // routes/Router.tsx
 import React from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -15,9 +17,14 @@ import { MyListScreen } from '~/screens/MyListScreen';
 import UserProfileScreen from '~/screens/UserProfileScreen';
 import SearchScreen from '~/screens/SearchScreen';
 
-// Importar componentes
-import { CustomHeader, MediaHeader, SearchHeader, HomeHeader, ProfileHeader } from '~/components/headers/CustomHeader';
-import { NetflixTabBar } from '~/components/headers/NetflixTabBar';
+// Importar componentes de Header
+import { HomeHeader } from '~/routes/headers/HomeHeader';
+import { SearchHeader } from '~/routes/headers/SearchHeader';
+import { MediaHeader } from '~/routes/headers/MediaHeader';
+import { ProfileHeader } from '~/routes/headers/ProfileHeader';
+import { CustomHeader } from '~/routes/headers/CustomHeader';
+import { TabBar } from '~/routes/headers/TabBar';
+
 import theme from '~/theme/theme';
 
 // Tipos para navegação
@@ -43,8 +50,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
 // Screen wrapper with specific headers
-const ScreenWithSpecificHeader: React.FC<{ 
-  component: React.ComponentType<any>; 
+const ScreenWithSpecificHeader: React.FC<{
+  component: React.ComponentType<any>;
   headerType: 'home' | 'search' | 'profile' | 'default';
 }> = ({ component: Component, headerType }) => {
   return ({ navigation, route }: any) => {
@@ -57,37 +64,39 @@ const ScreenWithSpecificHeader: React.FC<{
         case 'profile':
           return <ProfileHeader navigation={navigation} />;
         default:
-          return <CustomHeader navigation={navigation} title="" />;
+          return <CustomHeader navigation={navigation} title="Minha Lista" />;
       }
     };
 
     return (
-      <View style={styles.screenContainer}>
+      <SafeAreaView style={styles.screenContainer} edges={['top']}>
         {renderHeader()}
         <Component navigation={navigation} route={route} />
-      </View>
+      </SafeAreaView>
     );
   };
 };
 
+
 // Media Screen wrapper with custom header
 const MediaScreenWithHeader: React.FC<any> = ({ navigation, route }) => {
   const { media } = route.params;
-  
+
   return (
-    <View style={styles.mediaScreenContainer}>
+    <SafeAreaView style={styles.mediaScreenContainer} edges={['top']}>
       <MediaHeader navigation={navigation} />
       <MediaScreen media={media} onBack={() => navigation.goBack()} />
-    </View>
+    </SafeAreaView>
   );
 };
+
 
 // Main Tab Navigator
 const MainTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
       initialRouteName="Home"
-      tabBar={(props) => <NetflixTabBar {...props} />}
+      tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
         headerShown: false,
       }}

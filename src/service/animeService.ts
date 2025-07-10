@@ -23,7 +23,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error filtering animes:', error);
       throw new Error('Failed to filter animes');
     }
   }
@@ -38,7 +37,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching all animes:', error);
       throw new Error('Failed to fetch animes');
     }
   }
@@ -51,7 +49,6 @@ export class AnimeService {
       const response = await api.get(`${this.baseUrl}/top10`);
       return response.data;
     } catch (error) {
-      console.error('Error fetching top 10 animes:', error);
       throw new Error('Failed to fetch top 10 animes');
     }
   }
@@ -64,7 +61,6 @@ export class AnimeService {
       const response = await api.get(`${this.baseUrl}/${id}`);
       return response.data;
     } catch (error) {
-      console.error(`Error fetching anime with id ${id}:`, error);
       throw new Error(`Failed to fetch anime with id ${id}`);
     }
   }
@@ -77,7 +73,6 @@ export class AnimeService {
       const response = await api.post(`${this.baseUrl}/${id}/like`);
       return response.data;
     } catch (error) {
-      console.error('Error toggling anime like:', error);
       throw new Error('Failed to toggle like');
     }
   }
@@ -90,7 +85,6 @@ export class AnimeService {
       const response = await api.post(`${this.baseUrl}/${id}/my-list`);
       return response.data;
     } catch (error) {
-      console.error('Error toggling my list:', error);
       throw new Error('Failed to toggle my list');
     }
   }
@@ -105,7 +99,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching popular animes:', error);
       throw new Error('Failed to fetch popular animes');
     }
   }
@@ -120,7 +113,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching new releases:', error);
       throw new Error('Failed to fetch new releases');
     }
   }
@@ -139,7 +131,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching animes by category ${categoria}:`, error);
       throw new Error(`Failed to fetch animes by category ${categoria}`);
     }
   }
@@ -154,7 +145,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching high rated animes:', error);
       throw new Error('Failed to fetch high rated animes');
     }
   }
@@ -169,7 +159,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error('Error fetching anime recommendations:', error);
       throw new Error('Failed to fetch recommendations');
     }
   }
@@ -188,7 +177,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching similar animes for id ${id}:`, error);
       throw new Error(`Failed to fetch similar animes for id ${id}`);
     }
   }
@@ -207,7 +195,6 @@ export class AnimeService {
       });
       return response.data;
     } catch (error) {
-      console.error(`Error fetching animes by year ${year}:`, error);
       throw new Error(`Failed to fetch animes by year ${year}`);
     }
   }

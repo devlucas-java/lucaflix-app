@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
   Text,
   ScrollView,
   RefreshControl,
   StatusBar,
-  SafeAreaView,
   ActivityIndicator,
   Dimensions,
 } from "react-native";
@@ -24,12 +24,8 @@ import { Categoria } from "../types/mediaTypes";
 import { HeroSection } from "../components/HeroSection";
 import { MovieRow } from "../components/MovieRow";
 import {
-  formatTitleForUrl,
   loadMediaById,
   getMediaType,
-  isMovie,
-  isAnime,
-  isSerie,
 } from "../utils/mediaService";
 import { FacaLogin } from "../components/FacaLogin";
 import { useNavigation } from "@react-navigation/native";
@@ -443,18 +439,10 @@ export const HomeScreen: React.FC = () => {
 
         <View className="relative z-10 -mt-32 pb-8">
           {/* Conteúdo crítico - com loading states específicos */}
-          {isAuthenticated && (
-            <MovieRow
-              title="Recomendado para Você"
-              movies={recommendations}
-              onInfo={handleInfo}
-              loading={loadingStates.recommendations}
-              hasMore={false}
-            />
-          )}
 
           <MovieRow
-            title="Top 10 Filmes"
+            // title="Top 10 Filmes"
+            title=""
             movies={top10Movies}
             onInfo={handleInfo}
             isTop10={true}
@@ -468,10 +456,20 @@ export const HomeScreen: React.FC = () => {
             movies={top10Series}
             onInfo={handleInfo}
             isTop10={true}
-            isBigCard={true}
+            isBigCard={false}
             loading={loadingStates.top10Series}
             hasMore={false}
           />
+
+          {/* {isAuthenticated && (
+            <MovieRow
+              title="Recomendado para Você"
+              movies={recommendations}
+              onInfo={handleInfo}
+              loading={loadingStates.recommendations}
+              hasMore={false}
+            />
+          )} */}
 
           {/* Conteúdo lazy - carrega conforme scroll com delays escalonados */}
           <LazyMovieRow

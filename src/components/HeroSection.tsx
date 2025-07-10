@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,28 +7,17 @@ import {
   ScrollView,
   Dimensions,
   Alert,
-} from "react-native";
-import { WebView } from "react-native-webview";
-// Fix: Import from specific icon family instead of root package
-import Icon from "react-native-vector-icons/MaterialIcons";
-import type {
-  MovieCompleteDTO,
-  SerieCompleteDTO,
-  AnimeCompleteDTO,
-} from "../types/mediaTypes";
-import { Type } from "../types/mediaTypes";
-import {
-  isMovie,
-  isAnime,
-  isSerie,
-  truncateText,
-  toggleMyList,
-  toggleLike,
-  getMediaDuration,
-} from "../utils/mediaService";
-import authService from "../service/authService";
+  ImageBackground,
+} from 'react-native';
+import { WebView } from 'react-native-webview';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import type { MovieCompleteDTO, SerieCompleteDTO, AnimeCompleteDTO } from '../types/mediaTypes';
+import { isMovieComplete, isSerieComplete, Type } from '../types/mediaTypes';
+import { truncateText, toggleMyList, toggleLike, getMediaDuration } from '../utils/mediaService';
+import authService from '../service/authService';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const { width, height } = Dimensions.get("window");
+const { width, height } = Dimensions.get('window');
 
 interface HeroSectionProps {
   media: MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO;
@@ -43,43 +32,33 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   onPlay,
   useH1 = false,
 }) => {
-  const [muted, setMuted] = useState(true);
   const [isInMyList, setIsInMyList] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const [showVideo, setShowVideo] = useState(false);
+  const [showVideo, setShowVideo] = useState(true);
+  const [imageError, setImageError] = useState(false);
+  const [fallbackImageError, setFallbackImageError] = useState(false);
+  const [backdropError, setBackdropError] = useState(false);
 
   useEffect(() => {
     setIsInMyList(media?.inUserList || false);
-    setIsLiked(media?.userLiked || false);
   }, [media]);
 
   const handleMyList = async () => {
     if (isLoading) return;
+
+    if (!authService.isAuthenticated()) {
+      Alert.alert('Login necessário', 'Você precisa estar logado para adicionar à sua lista');
+      return;
+    }
 
     setIsLoading(true);
     try {
       const result = await toggleMyList(media);
       setIsInMyList(result);
     } catch (error) {
-      console.error("Erro ao adicionar/remover da minha lista:", error);
-      Alert.alert("Erro", "Não foi possível atualizar sua lista");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleLike = async () => {
-    if (isLoading) return;
-
-    setIsLoading(true);
-    try {
-      const result = await toggleLike(media);
-      setIsLiked(result);
-    } catch (error) {
-      console.error("Erro ao curtir/descurtir:", error);
-      Alert.alert("Erro", "Não foi possível curtir/descurtir");
+      console.error('Erro ao adicionar/remover da minha lista:', error);
+      Alert.alert('Erro', 'Não foi possível atualizar sua lista');
     } finally {
       setIsLoading(false);
     }
@@ -90,34 +69,6 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       onPlay();
     }
   };
-
-  const getMediaInfo = () => {
-    const duration = getMediaDuration(media);
-
-    if (isMovie(media)) {
-      return {
-        duration,
-        type: Type.MOVIE,
-      };
-    } else if (isAnime(media)) {
-      return {
-        duration,
-        type: Type.ANIME,
-      };
-    } else if (isSerie(media)) {
-      return {
-        duration,
-        type: Type.SERIE,
-      };
-    } else {
-      return {
-        duration: "Duração desconhecida",
-        type: "DESCONHECIDO",
-      };
-    }
-  };
-
-  const mediaInfo = getMediaInfo();
 
   const getYouTubeVideoId = (url: string): string | null => {
     if (!url) return null;
@@ -141,183 +92,189 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const videoId = media.trailer ? getYouTubeVideoId(media.trailer) : null;
 
   const youtubeURL = videoId
-    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=${
-        muted ? 1 : 0
-      }&controls=0&loop=1&playlist=${videoId}&modestbranding=1&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&fs=0`
+    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0
+      }&controls=0&loop=1&playlist=${videoId}&modestbranding=1&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1`
     : null;
 
-  // Add null check for media
+  const getBackdropURL = () => {
+    if (!backdropError && media.backdropURL1) {
+      return media.backdropURL1;
+    } else if (media.backdropURL2) {
+      return media.backdropURL2;
+    } else if (media.backdropURL3) {
+      return media.backdropURL3;
+    } else if (media.backdropURL4) {
+      return media.backdropURL4;
+    }
+    return null;
+  };
+
+  const getContentType = () => {
+    if (isMovieComplete(media)) {
+      return 'FILME';
+    } else if (isSerieComplete(media)) {
+      return 'SÉRIE';
+    } else {
+      return 'ANIME';
+    }
+  };
+
+  const renderLogoOrTitle = () => {
+    return (
+      <View className="mb-4 mt-10">
+        {media.logoURL1 && !imageError ? (
+          <Image
+            source={{ uri: media.logoURL1 }}
+            className="aspect-[16/5]"
+            resizeMode="contain"
+            onError={() => setImageError(true)}
+          />
+        ) : media.logoURL2 && !fallbackImageError && imageError ? (
+          <Image
+            source={{ uri: media.logoURL2 }}
+            className="aspect-[16/5]"
+            resizeMode="contain"
+            onError={() => setFallbackImageError(true)}
+          />
+        ) : (
+          <Text className="leading-11 text-4xl font-extralight text-white">{media.title}</Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderMediaInfo = () => {
+    const info = [];
+
+    if (media.avaliacao) {
+      info.push(`${media.avaliacao}/10`);
+    }
+
+    if (media.anoLancamento) {
+      info.push(media.anoLancamento.toString());
+    }
+
+    if (media.minAge) {
+      info.push(media.minAge);
+    }
+
+    return info.join(' • ');
+  };
+
   if (!media) {
     return (
-      <View className="flex-1 bg-gray-900 justify-center items-center">
-        <Text className="text-white text-base">Carregando...</Text>
+      <View className="flex-1 items-center justify-center bg-black">
+        <Text className="text-base text-white">Carregando...</Text>
       </View>
     );
   }
 
+  const backdropURL = getBackdropURL();
+
   return (
-    <ScrollView className="flex-1 bg-black" showsVerticalScrollIndicator={false}>
-      <View style={{ height: height * 0.8 }} className="relative">
-        {/* Background Video/Image */}
-        <View className="absolute inset-0">
-          {youtubeURL && !videoError && showVideo ? (
-            <WebView
-              source={{ uri: youtubeURL }}
-              style={{ flex: 1 }}
-              allowsInlineMediaPlayback
-              mediaPlaybackRequiresUserAction={false}
-              onError={() => setVideoError(true)}
-            />
-          ) : (
-            <Image
-              source={{ uri: media.posterURL1 }}
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="cover"
-              onError={() => {
-                if (media.posterURL2) {
-                  // Fallback para posterURL2
-                }
-              }}
-            />
-          )}
+    <View
+      className="z-5 center m-6 flex rounded-lg border-2 border-gray-200 bg-black"
+      style={{ height: height * 0.75 }}>
+      {/* Gradiente overlay */}
+      {/* <LinearGradient
+        colors={[
+          '#000000', // topo 0%
+          'rgba(0,0,0,0.9)', // 15%
+          'rgba(0,0,0,0.6)', // 30%
+          'rgba(0,0,0,0.2)', // 45%
+          'transparent', // 55%
+          'rgba(0,0,0,0.2)', // 70%
+          'rgba(0,0,0,0.5)', // 85%
+          '#000000', // base 100%
+        ]}
+        locations={[0, 0.15, 0.3, 0.45, 0.55, 0.7, 0.85, 1]}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        className="absolute -top-8 bottom-0 left-0 right-0 z-10"
+      /> */}
+      <ImageBackground
+        source={{ uri: media.posterURL1 || media.posterURL2 }}
+        className="z-1 absolute h-full w-full"
+        onError={() => setBackdropError(true)}></ImageBackground>
+      <View className=" h-20" />
+
+      {/* Trailer WebView */}
+      {showVideo && youtubeURL && !videoError && (
+        <View className="z-15 flex aspect-video w-full overflow-hidden">
+          <WebView
+            source={{ uri: youtubeURL }}
+            className="flex-1 bg-transparent"
+            allowsFullscreenVideo={false}
+            mediaPlaybackRequiresUserAction={false}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            onError={() => setVideoError(true)}
+            scalesPageToFit={true}
+            bounces={false}
+            scrollEnabled={false}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+          />
         </View>
+      )}
 
-        {/* Gradient Overlay */}
-        <View className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+      <ImageBackground
+        source={{ uri: media.backdropURL1 || media.backdropURL2 }}
+        className={`aspect-video ${showVideo ? '' : 'hidden'}`}
+        onError={() => setBackdropError(true)}>
+        {/* Conteúdo principal */}
+        <View className="-bottom-10 left-0 right-0 z-10 flex justify-center px-5 pb-10">
+          {/* Logo ou título */}
+          <View className='w-full'>{renderLogoOrTitle()}</View>
 
-        {/* Content */}
-        <View className="absolute bottom-0 left-0 right-0 p-6 pb-8">
-          {/* Category */}
-          <View className="flex-row items-center mb-3">
-            <View className="bg-red-600 px-3 py-1 rounded mr-3">
-              <Text className="text-white text-xs font-bold">
-                {media.type}
-              </Text>
-            </View>
-            <Text className="text-gray-300 text-xs flex-1" numberOfLines={1}>
-              {media.categoria?.join(", ").replace(/_/g, " ") || "Categoria"}
-            </Text>
+          {/* Informações */}
+          <View className=" items-center justify-center">
+            <Text className="mb-3 text-sm font-medium text-white">{renderMediaInfo()}</Text>
           </View>
 
-          {/* Title */}
-          <Text className="text-white text-3xl font-bold mb-3 leading-tight">
-            {media.title}
-          </Text>
-
-          {/* Meta info */}
-          <View className="flex-row items-center flex-wrap gap-2 mb-4">
-            {media.avaliacao > 0 && (
-              <Text className="text-green-400 text-sm font-semibold">
-                ★ {media.avaliacao.toFixed(1)}
-              </Text>
-            )}
-            <Text className="text-white text-sm">
-              {media.anoLancamento ?? "N/A"}
-            </Text>
-            <Text className="text-white text-sm">
-              {mediaInfo.duration}
-            </Text>
-            <View className="border border-gray-400 px-2 py-1 rounded">
-              <Text className="text-white text-xs">
-                {mediaInfo.type}
-              </Text>
-            </View>
-          </View>
-
-          {/* Synopsis */}
-          <Text className="text-white text-base mb-6 leading-relaxed">
-            {truncateText(media.sinopse, 120) || "Sinopse não disponível."}
-          </Text>
-
-          {/* Main Buttons */}
-          <View className="flex-row gap-3 mb-4">
+          {/* Botões principais */}
+          <View className="flex-row items-center justify-between">
+            {/* Botão Minha Lista - Apenas ícone */}
             <TouchableOpacity
-              onPress={handlePlay}
-              className="bg-white flex-1 py-3 px-6 rounded-lg flex-row items-center justify-center"
-              activeOpacity={0.8}
-            >
-              <Icon name="play-arrow" size={24} color="#000" />
-              <Text className="text-black text-base font-semibold ml-2">
-                Assistir
-              </Text>
+              className="h-11 w-11 items-center justify-center rounded-full bg-gray-600/70"
+              onPress={handleMyList}
+              disabled={isLoading}
+              activeOpacity={0.8}>
+              <Icon name={isInMyList ? 'check' : 'add'} size={20} color="#fff" />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={onInfo}
-              className="bg-gray-600 flex-1 py-3 px-6 rounded-lg flex-row items-center justify-center"
-              activeOpacity={0.8}
-            >
-              <Icon name="info" size={24} color="#fff" />
-              <Text className="text-white text-base font-semibold ml-2">
-                Mais info
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Secondary Buttons */}
-          {authService.isAuthenticated() && (
-            <View className="flex-row gap-4 justify-center">
+            {/* Botões centrais - Play e Info colados */}
+            <View className="flex-row items-center">
+              {/* Botão Play */}
               <TouchableOpacity
-                onPress={handleMyList}
-                disabled={isLoading}
-                className="border-2 border-gray-400 p-3 rounded-full"
-                activeOpacity={0.8}
-              >
-                <Icon
-                  name={isInMyList ? "check" : "add"}
-                  size={24}
-                  color="#fff"
-                />
+                className="flex-row items-center justify-center rounded-l bg-white px-5 py-3"
+                onPress={handlePlay}
+                activeOpacity={0.9}>
+                <Icon name="play-arrow" size={24} color="#000" />
+                <Text className="ml-2 text-base font-semibold text-black">Assistir</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={handleLike}
-                disabled={isLoading}
-                className={`border-2 p-3 rounded-full ${
-                  isLiked
-                    ? "border-green-400"
-                    : "border-gray-400"
-                }`}
-                activeOpacity={0.8}
-              >
-                <Icon
-                  name="thumb-up"
-                  size={24}
-                  color={isLiked ? "#4ade80" : "#fff"}
-                />
-              </TouchableOpacity>
-
-              {youtubeURL && !videoError && (
+              {/* Botão Info - Colado com Play */}
+              {onInfo && (
                 <TouchableOpacity
-                  onPress={() => setMuted(!muted)}
-                  className="border-2 border-gray-400 p-3 rounded-full"
-                  activeOpacity={0.8}
-                >
-                  <Icon
-                    name={muted ? "volume-off" : "volume-up"}
-                    size={24}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-              )}
-
-              {youtubeURL && !videoError && (
-                <TouchableOpacity
-                  onPress={() => setShowVideo(!showVideo)}
-                  className="border-2 border-gray-400 p-3 rounded-full"
-                  activeOpacity={0.8}
-                >
-                  <Icon
-                    name={showVideo ? "videocam-off" : "videocam"}
-                    size={24}
-                    color="#fff"
-                  />
+                  className="items-center justify-center rounded-r-md border-2 border-white bg-gray-600/70 px-4 py-3"
+                  onPress={onInfo}
+                  activeOpacity={0.8}>
+                  <Icon name="info-outline" size={20} color="#fff" />
                 </TouchableOpacity>
               )}
             </View>
-          )}
+
+            {/* Botão Trailer - Apenas ícone */}
+            <TouchableOpacity
+              className="h-11 w-11 items-center justify-center rounded-full bg-gray-600/70"
+              onPress={() => setShowVideo(!showVideo)}
+              activeOpacity={0.8}>
+              <Icon name="movie" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ImageBackground>
+    </View>
   );
 };
