@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   View,
@@ -7,33 +7,27 @@ import {
   RefreshControl,
   StatusBar,
   ActivityIndicator,
-  Dimensions,
+  Animated,
 } from "react-native";
 import { movieService } from "../service/movieService";
 import { serieService } from "../service/seriesService";
-import authService from "../service/authService";
-import type {
-  MovieSimpleDTO,
-  SerieSimpleDTO,
-  MovieCompleteDTO,
-  SerieCompleteDTO,
-  AnimeSimpleDTO,
-  AnimeCompleteDTO,
+import { 
+  MovieSimpleDTO, 
+  SerieSimpleDTO, 
+  MediaComplete,
+  MediaSimple,
+  Categoria 
 } from "../types/mediaTypes";
-import { Categoria } from "../types/mediaTypes";
 import { HeroSection } from "../components/HeroSection";
 import { MovieRow } from "../components/MovieRow";
-import {
-  loadMediaById,
-  getMediaType,
-} from "../utils/mediaService";
+import { loadMediaById, getMediaType } from "../utils/mediaService";
 import { FacaLogin } from "../components/FacaLogin";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { HomeHeader } from "~/routes/headers/HomeHeader";
+import { Loading } from "./Loading";
 
-const { width, height } = Dimensions.get('window');
-
-// Hook para detectar quando elemento entra na viewport (simulado para RN)
+// Hook para carregamento lazy
 const useIntersectionObserver = (threshold = 0.1) => {
   const [isVisible, setIsVisible] = useState(false);
   const [hasTriggered, setHasTriggered] = useState(false);
@@ -48,14 +42,13 @@ const useIntersectionObserver = (threshold = 0.1) => {
   return [triggerVisibility, isVisible] as const;
 };
 
-// Componente para carregamento lazy de seções
+// Componente para carregamento lazy
 const LazyMovieRow: React.FC<{
   title: string;
-  loadData: () => Promise<any[]>;
-  onInfo: (media: any) => void;
+  loadData: () => Promise<MediaSimple[]>;
+  onInfo: (media: MediaSimple) => void;
   isTop10?: boolean;
   isBigCard?: boolean;
-  onViewableItemsChanged?: () => void;
   globalLoading?: boolean;
   loadingDelay?: number;
 }> = ({ 
@@ -64,12 +57,11 @@ const LazyMovieRow: React.FC<{
   onInfo, 
   isTop10, 
   isBigCard, 
-  onViewableItemsChanged,
   globalLoading = false,
   loadingDelay = 0
 }) => {
   const [triggerLoad, isVisible] = useIntersectionObserver();
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<MediaSimple[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -77,7 +69,6 @@ const LazyMovieRow: React.FC<{
     if (isVisible && !loaded && !loading && !globalLoading) {
       setLoading(true);
       
-      // Simula delay de carregamento se especificado
       const loadWithDelay = async () => {
         if (loadingDelay > 0) {
           await new Promise(resolve => setTimeout(resolve, loadingDelay));
@@ -95,52 +86,44 @@ const LazyMovieRow: React.FC<{
     }
   }, [isVisible, loaded, loading, loadData, globalLoading, loadingDelay]);
 
-  // Trigger carregamento quando componente aparecer na tela
   useEffect(() => {
     if (!globalLoading) {
       const timer = setTimeout(() => {
-        if (onViewableItemsChanged) {
-          onViewableItemsChanged();
-        }
         triggerLoad();
       }, 100);
-
       return () => clearTimeout(timer);
     }
-  }, [triggerLoad, onViewableItemsChanged, globalLoading]);
+  }, [triggerLoad, globalLoading]);
 
-  // Se globalLoading está ativo, mostra loading
   if (globalLoading) {
     return (
       <View className="px-4 mb-8">
         <Text className="text-white text-xl font-bold mb-4">{title}</Text>
         <View className="flex items-center justify-center h-32">
           <ActivityIndicator size="large" color="#E50914" />
-          <Text className="text-gray-400 text-sm mt-2">Carregando conteúdo...</Text>
+          <Text className="text-gray-400 text-sm mt-2">Carregando...</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View>
-      <MovieRow
-        title={title}
-        movies={data}
-        onInfo={onInfo}
-        isTop10={isTop10}
-        isBigCard={isBigCard}
-        loading={loading}
-        hasMore={false}
-      />
-    </View>
+    <MovieRow
+      title={title}
+      movies={data}
+      onInfo={onInfo}
+      isTop10={isTop10}
+      isBigCard={isBigCard}
+      loading={loading}
+      hasMore={false}
+    />
   );
 };
 
 type RootStackParamList = {
   Home: undefined;
-  MediaPage: {
-    media: MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO;
+  MediaScreen: {
+    media: MediaComplete;
   };
 };
 
@@ -148,18 +131,14 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const scrollY = useRef(new Animated.Value(0)).current;
   
-  const [heroContent, setHeroContent] = useState<
-    MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO | null
-  >(null);
-
-  // Estados para conteúdo crítico (carregado imediatamente)
-  const [recommendations, setRecommendations] = useState<
-    (MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO)[]
-  >([]);
+  // Estados principais
+  const [heroContent, setHeroContent] = useState<MediaComplete | null>(null);
+  const [recommendations, setRecommendations] = useState<MediaSimple[]>([]);
   const [top10Movies, setTop10Movies] = useState<MovieSimpleDTO[]>([]);
   const [top10Series, setTop10Series] = useState<SerieSimpleDTO[]>([]);
-
+  
   // Estados de loading
   const [initialLoading, setInitialLoading] = useState(true);
   const [heroLoading, setHeroLoading] = useState(true);
@@ -167,35 +146,20 @@ export const HomeScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Estados de loading para seções específicas
-  const [loadingStates, setLoadingStates] = useState({
-    recommendations: false,
-    top10Movies: false,
-    top10Series: false,
-  });
-
   useEffect(() => {
-    setIsAuthenticated(true);
+    setIsAuthenticated(false);
     loadInitialContent();
   }, []);
 
-  // Função para atualizar loading de seções específicas
-  const updateLoadingState = (section: string, loading: boolean) => {
-    setLoadingStates(prev => ({ ...prev, [section]: loading }));
-  };
-
-  // Carrega apenas conteúdo crítico inicialmente
   const loadInitialContent = async () => {
     try {
       setInitialLoading(true);
       setHeroLoading(true);
       setContentLoading(true);
 
-      // Carrega hero primeiro
       await loadHeroContent();
       setHeroLoading(false);
 
-      // Carrega conteúdo crítico em paralelo
       await Promise.all([
         loadTop10Content(),
         loadAuthenticatedContent(),
@@ -203,7 +167,7 @@ export const HomeScreen: React.FC = () => {
 
       setContentLoading(false);
     } catch (error) {
-      console.error("Error loading initial content:", error);
+      console.error("Error loading content:", error);
       setHeroLoading(false);
       setContentLoading(false);
     } finally {
@@ -213,69 +177,54 @@ export const HomeScreen: React.FC = () => {
 
   const loadHeroContent = async () => {
     try {
-      // Simula loading mínimo para hero
       await new Promise(resolve => setTimeout(resolve, 800));
-      
       const randomId = Math.floor(Math.random() * (120 - 40 + 1)) + 40;
       const result = await loadMediaById(randomId);
       if (result) {
         setHeroContent(result.media);
       }
     } catch (error) {
-      console.error("Error loading hero content:", error);
+      console.error("Error loading hero:", error);
     }
   };
 
   const loadTop10Content = async () => {
     try {
-      updateLoadingState('top10Movies', true);
-      updateLoadingState('top10Series', true);
-
-      const [top10MoviesData, top10SeriesData] = await Promise.all([
+      const [moviesData, seriesData] = await Promise.all([
         movieService.getTop10MostLiked(),
         serieService.getTop10MostLiked(),
       ]);
-
-      // Simula delay para demonstrar loading
+      
       await new Promise(resolve => setTimeout(resolve, 1000));
-
-      setTop10Movies(top10MoviesData);
-      setTop10Series(top10SeriesData);
+      
+      setTop10Movies(moviesData);
+      setTop10Series(seriesData);
     } catch (error) {
-      console.error("Error loading top 10 content:", error);
-    } finally {
-      updateLoadingState('top10Movies', false);
-      updateLoadingState('top10Series', false);
+      console.error("Error loading top 10:", error);
     }
   };
 
   const loadAuthenticatedContent = async () => {
     if (isAuthenticated) {
       try {
-        updateLoadingState('recommendations', true);
-        
-        const [movieRecommendations, serieRecommendations] = await Promise.all([
+        const [movieRecs, serieRecs] = await Promise.all([
           movieService.getRecommendations(0, 10),
           serieService.getRecommendations(0, 10),
         ]);
 
-        // Simula delay para demonstrar loading
         await new Promise(resolve => setTimeout(resolve, 1200));
-
+        
         setRecommendations([
-          ...movieRecommendations.content,
-          ...serieRecommendations.content,
+          ...movieRecs.content,
+          ...serieRecs.content,
         ]);
       } catch (error) {
-        console.error("Error loading authenticated content:", error);
+        console.error("Error loading recommendations:", error);
         setIsAuthenticated(false);
-      } finally {
-        updateLoadingState('recommendations', false);
       }
     }
   };
 
-  // Função para refresh (pull to refresh)
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
@@ -285,89 +234,27 @@ export const HomeScreen: React.FC = () => {
     }
   }, []);
 
-  // Funções para carregamento lazy com delays escalonados
-  const loadPopularMovies = useCallback(
-    () => movieService.getPopularMovies(0, 12).then(data => data.content),
-    []
-  );
+  // Funções de carregamento lazy
+  const loadDataFunctions = {
+    popularMovies: () => movieService.getPopularMovies(0, 12).then(data => data.content),
+    popularSeries: () => serieService.getPopularSeries(0, 12).then(data => data.content),
+    newReleases: () => movieService.getNewReleases(0, 12).then(data => data.content),
+    topRatedMovies: () => movieService.getHighRatedMovies(0, 12).then(data => data.content),
+    highRatedSeries: () => serieService.getHighRatedSeries(0, 12).then(data => data.content),
+    recentSeries: () => serieService.getRecentSeries(0, 12).then(data => data.content),
+    actionMovies: () => movieService.getMoviesByCategory(Categoria.ACAO, 0, 12).then(data => data.content).catch(() => []),
+    comedyMovies: () => movieService.getMoviesByCategory(Categoria.COMEDIA, 0, 12).then(data => data.content).catch(() => []),
+    dramaMovies: () => movieService.getMoviesByCategory(Categoria.DRAMA, 0, 12).then(data => data.content).catch(() => []),
+    horrorMovies: () => movieService.getMoviesByCategory(Categoria.SUSPENSE, 0, 12).then(data => data.content).catch(() => []),
+    fantasyMovies: () => movieService.getMoviesByCategory(Categoria.FANTASIA, 0, 12).then(data => data.content).catch(() => []),
+    sciFiMovies: () => movieService.getMoviesByCategory(Categoria.FICCAO_CIENTIFICA, 0, 12).then(data => data.content).catch(() => []),
+  };
 
-  const loadPopularSeries = useCallback(
-    () => serieService.getPopularSeries(0, 12).then(data => data.content),
-    []
-  );
-
-  const loadNewReleases = useCallback(
-    () => movieService.getNewReleases(0, 12).then(data => data.content),
-    []
-  );
-
-  const loadTopRatedMovies = useCallback(
-    () => movieService.getHighRatedMovies(0, 12).then(data => data.content),
-    []
-  );
-
-  const loadHighRatedSeries = useCallback(
-    () => serieService.getHighRatedSeries(0, 12).then(data => data.content),
-    []
-  );
-
-  const loadRecentSeries = useCallback(
-    () => serieService.getRecentSeries(0, 12).then(data => data.content),
-    []
-  );
-
-  const loadActionMovies = useCallback(
-    () => movieService.getMoviesByCategory(Categoria.ACAO, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadActionSeries = useCallback(
-    () => serieService.getSeriesByCategory(Categoria.ACAO, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadComedyMovies = useCallback(
-    () => movieService.getMoviesByCategory(Categoria.COMEDIA, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadComedySeries = useCallback(
-    () => serieService.getSeriesByCategory(Categoria.COMEDIA, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadDramaMovies = useCallback(
-    () => movieService.getMoviesByCategory(Categoria.DRAMA, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadDramaSeries = useCallback(
-    () => serieService.getSeriesByCategory(Categoria.DRAMA, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadHorrorMovies = useCallback(
-    () => movieService.getMoviesByCategory(Categoria.SUSPENSE, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadFantasyMovies = useCallback(
-    () => movieService.getMoviesByCategory(Categoria.FANTASIA, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const loadSciFiMovies = useCallback(
-    () => movieService.getMoviesByCategory(Categoria.FICCAO_CIENTIFICA, 0, 12).then(data => data.content).catch(() => []),
-    []
-  );
-
-  const handleInfo = async (
-    media: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO
-  ) => {
+  // Função otimizada para lidar com o clique na mídia
+  const handleInfo = useCallback(async (media: MediaSimple) => {
     try {
       const mediaType = getMediaType(media);
-
-      let completeMedia: MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO;
+      let completeMedia: MediaComplete;
 
       if (mediaType === "movie") {
         completeMedia = await movieService.getMovieById(media.id);
@@ -377,34 +264,29 @@ export const HomeScreen: React.FC = () => {
         completeMedia = await movieService.getMovieById(media.id);
       }
 
-      navigation.navigate('MediaPage', { media: completeMedia });
+      navigation.navigate('MediaScreen', { 
+        media: completeMedia 
+      });
     } catch (error) {
       console.error("Error loading media details:", error);
     }
-  };
+  }, [navigation]);
 
-  const handleHeroInfo = () => {
+  const handleHeroInfo = useCallback(() => {
     if (heroContent) {
-      navigation.navigate('MediaPage', { media: heroContent });
+      navigation.navigate('MediaScreen', { media: heroContent });
     }
-  };
+  }, [heroContent, navigation]);
 
-  // Loading inicial completo
   if (initialLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-black">
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" color="#E50914" />
-          <Text className="text-white text-lg mt-4">Carregando CineFlix...</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <Loading />;
   }
 
   return (
     <SafeAreaView className="flex-1 bg-black">
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      
+      <HomeHeader navigation={navigation} scrollY={scrollY} />
       
       <ScrollView
         className="flex-1"
@@ -419,6 +301,11 @@ export const HomeScreen: React.FC = () => {
             titleColor="#fff"
           />
         }
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
       >
         {/* Hero Section */}
         {heroLoading ? (
@@ -430,7 +317,6 @@ export const HomeScreen: React.FC = () => {
           heroContent && (
             <HeroSection
               media={heroContent}
-              useH1={true}
               onInfo={handleHeroInfo}
               loading={heroLoading}
             />
@@ -438,16 +324,14 @@ export const HomeScreen: React.FC = () => {
         )}
 
         <View className="relative z-10 -mt-32 pb-8">
-          {/* Conteúdo crítico - com loading states específicos */}
-
+          {/* Conteúdo principal */}
           <MovieRow
-            // title="Top 10 Filmes"
             title=""
             movies={top10Movies}
             onInfo={handleInfo}
             isTop10={true}
-            isBigCard={true}
-            loading={loadingStates.top10Movies}
+            isBigCard={false}
+            loading={contentLoading}
             hasMore={false}
           />
 
@@ -456,25 +340,14 @@ export const HomeScreen: React.FC = () => {
             movies={top10Series}
             onInfo={handleInfo}
             isTop10={true}
-            isBigCard={false}
-            loading={loadingStates.top10Series}
+            loading={contentLoading}
             hasMore={false}
           />
 
-          {/* {isAuthenticated && (
-            <MovieRow
-              title="Recomendado para Você"
-              movies={recommendations}
-              onInfo={handleInfo}
-              loading={loadingStates.recommendations}
-              hasMore={false}
-            />
-          )} */}
-
-          {/* Conteúdo lazy - carrega conforme scroll com delays escalonados */}
+          {/* Conteúdo lazy */}
           <LazyMovieRow
             title="Filmes Populares"
-            loadData={loadPopularMovies}
+            loadData={loadDataFunctions.popularMovies}
             onInfo={handleInfo}
             globalLoading={contentLoading}
             loadingDelay={500}
@@ -482,16 +355,15 @@ export const HomeScreen: React.FC = () => {
 
           <LazyMovieRow
             title="Séries Populares"
-            loadData={loadPopularSeries}
+            loadData={loadDataFunctions.popularSeries}
             onInfo={handleInfo}
-            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={700}
           />
 
           <LazyMovieRow
-            title="Novos Lançamentos - Filmes"
-            loadData={loadNewReleases}
+            title="Novos Lançamentos"
+            loadData={loadDataFunctions.newReleases}
             onInfo={handleInfo}
             globalLoading={contentLoading}
             loadingDelay={900}
@@ -499,7 +371,7 @@ export const HomeScreen: React.FC = () => {
 
           <LazyMovieRow
             title="Filmes Bem Avaliados"
-            loadData={loadTopRatedMovies}
+            loadData={loadDataFunctions.topRatedMovies}
             onInfo={handleInfo}
             globalLoading={contentLoading}
             loadingDelay={1100}
@@ -507,95 +379,58 @@ export const HomeScreen: React.FC = () => {
 
           <LazyMovieRow
             title="Séries Bem Avaliadas"
-            loadData={loadHighRatedSeries}
+            loadData={loadDataFunctions.highRatedSeries}
             onInfo={handleInfo}
-            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={1300}
           />
 
           <LazyMovieRow
-            title="Séries Recentes"
-            loadData={loadRecentSeries}
+            title="Filmes de Ação"
+            loadData={loadDataFunctions.actionMovies}
             onInfo={handleInfo}
-            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={1500}
           />
 
           <LazyMovieRow
-            title="Filmes de Ação"
-            loadData={loadActionMovies}
+            title="Filmes de Comédia"
+            loadData={loadDataFunctions.comedyMovies}
             onInfo={handleInfo}
             globalLoading={contentLoading}
             loadingDelay={1700}
           />
 
           <LazyMovieRow
-            title="Séries de Ação"
-            loadData={loadActionSeries}
+            title="Filmes de Drama"
+            loadData={loadDataFunctions.dramaMovies}
             onInfo={handleInfo}
-            isBigCard={true}
             globalLoading={contentLoading}
             loadingDelay={1900}
           />
 
           <LazyMovieRow
-            title="Filmes de Comédia"
-            loadData={loadComedyMovies}
+            title="Filmes de Terror"
+            loadData={loadDataFunctions.horrorMovies}
             onInfo={handleInfo}
             globalLoading={contentLoading}
             loadingDelay={2100}
           />
 
           <LazyMovieRow
-            title="Séries de Comédia"
-            loadData={loadComedySeries}
+            title="Filmes de Fantasia"
+            loadData={loadDataFunctions.fantasyMovies}
             onInfo={handleInfo}
-            isBigCard={false}
             globalLoading={contentLoading}
             loadingDelay={2300}
           />
 
           <LazyMovieRow
-            title="Filmes de Drama"
-            loadData={loadDramaMovies}
+            title="Ficção Científica"
+            loadData={loadDataFunctions.sciFiMovies}
             onInfo={handleInfo}
             globalLoading={contentLoading}
             loadingDelay={2500}
-          />
-
-          <LazyMovieRow
-            title="Séries de Drama"
-            loadData={loadDramaSeries}
-            onInfo={handleInfo}
-            isBigCard={false}
-            globalLoading={contentLoading}
-            loadingDelay={2700}
-          />
-
-          <LazyMovieRow
-            title="Filmes de Terror"
-            loadData={loadHorrorMovies}
-            onInfo={handleInfo}
-            globalLoading={contentLoading}
-            loadingDelay={2900}
-          />
-
-          <LazyMovieRow
-            title="Filmes de Fantasia"
-            loadData={loadFantasyMovies}
-            onInfo={handleInfo}
-            globalLoading={contentLoading}
-            loadingDelay={3100}
-          />
-
-          <LazyMovieRow
-            title="Filmes de Ficção Científica"
-            loadData={loadSciFiMovies}
-            onInfo={handleInfo}
-            globalLoading={contentLoading}
-            loadingDelay={3300}
           />
 
           {!isAuthenticated && <FacaLogin />}

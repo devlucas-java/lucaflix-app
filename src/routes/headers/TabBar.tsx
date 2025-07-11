@@ -1,4 +1,5 @@
-import React from 'react';
+// components/TabBar.tsx
+import React, { memo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,120 +8,150 @@ import {
   Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useTabBar } from './hooks/useTabBar';
 
 interface TabBarProps {
-  state: any;
-  descriptors: any;
-  navigation: any;
+  currentRoute?: string;
+  onTabPress?: (routeName: string) => void;
 }
 
-export const TabBar: React.FC<TabBarProps> = ({ 
-  state, 
-  descriptors, 
-  navigation 
+// Componente de ícone otimizado
+const TabIcon = memo(({ routeName, isFocused }: { routeName: string; isFocused: boolean }) => {
+  const iconColor = isFocused ? '#FFFFFF' : '#9CA3AF';
+  
+  switch (routeName) {
+    case 'Home':
+      return <Icon name="home" size={24} color={iconColor} />;
+    case 'Search':
+      return <Icon name="search" size={24} color={iconColor} />;
+    case 'MyList':
+      return <Icon name="favorite" size={24} color={iconColor} />;
+    case 'Profile':
+      return (
+        <Image 
+          source={require('../../../assets/icon.png')}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 12,
+            borderWidth: isFocused ? 2 : 0,
+            borderColor: isFocused ? '#DC2626' : 'transparent',
+            opacity: isFocused ? 1 : 0.7,
+          }}
+          resizeMode="contain"
+        />
+      );
+    default:
+      return <Icon name="home" size={24} color={iconColor} />;
+  }
+});
+
+// Labels estáticos para evitar re-criação
+const TAB_LABELS = {
+  Home: 'Início',
+  Search: 'Buscar',
+  MyList: 'Minha Lista',
+  Profile: 'Perfil',
+};
+
+// Componente de Tab otimizado
+const TabButton = memo(({ 
+  route, 
+  index, 
+  isFocused, 
+  onPress, 
+  onLongPress, 
+  options 
+}: {
+  route: any;
+  index: number;
+  isFocused: boolean;
+  onPress: () => void;
+  onLongPress: () => void;
+  options: any;
+}) => (
+  <TouchableOpacity
+    accessibilityRole="button"
+    accessibilityState={isFocused ? { selected: true } : {}}
+    accessibilityLabel={options?.tabBarAccessibilityLabel}
+    testID={options?.tabBarTestID}
+    onPress={onPress}
+    onLongPress={onLongPress}
+    className="flex-1 items-center justify-center px-1"
+    activeOpacity={0.7}
+  >
+    <View className="items-center justify-center py-1">
+      <TabIcon routeName={route.name} isFocused={isFocused} />
+      <Text 
+        className={`text-xs font-medium mt-1 text-center ${
+          isFocused ? 'text-white font-semibold' : 'text-gray-400'
+        }`}
+      >
+        {TAB_LABELS[route.name as keyof typeof TAB_LABELS] || route.name}
+      </Text>
+    </View>
+  </TouchableOpacity>
+));
+
+export const TabBar: React.FC<TabBarProps> = memo(({ 
+  currentRoute,
+  onTabPress 
 }) => {
-  const getTabIcon = (routeName: string, isFocused: boolean) => {
-    const iconColor = isFocused ? '#FFFFFF' : '#9CA3AF';
-    const iconSize = 24;
+  const { state, descriptors, navigation } = useTabBar();
 
-    switch (routeName) {
-      case 'Home':
-        return <Icon name="home" size={iconSize} color={iconColor} />;
-      case 'Search':
-        return <Icon name="search" size={iconSize} color={iconColor} />;
-      case 'MyList':
-        return <Icon name="favorite" size={iconSize} color={iconColor} />;
-      case 'Profile':
-        return (
-          <Image 
-            source={require('../../../assets/icon.png')} 
-            className={`w-6 h-6 rounded-full border ${
-              isFocused 
-                ? 'opacity-100 border-red-600' 
-                : 'opacity-70 border-transparent'
-            }`}
-            resizeMode="contain"
-          />
-        );
-      default:
-        return <Icon name="home" size={iconSize} color={iconColor} />;
-    }
-  };
+  const handleTabPress = useCallback((routeName: string, index: number) => {
+    if (onTabPress) {
+      onTabPress(routeName);
+    } else {
+      const event = navigation.emit({
+        type: 'tabPress',
+        target: state.routes[index].key,
+        canPreventDefault: true,
+      });
 
-  const getTabLabel = (routeName: string) => {
-    switch (routeName) {
-      case 'Home':
-        return 'Início';
-      case 'Search':
-        return 'Buscar';
-      case 'MyList':
-        return 'Minha Lista';
-      case 'Profile':
-        return 'Perfil';
-      default:
-        return routeName;
+      if (!event.defaultPrevented) {
+        navigation.navigate(routeName as never);
+      }
     }
-  };
+  }, [onTabPress, navigation, state.routes]);
+
+  const handleTabLongPress = useCallback((index: number) => {
+    navigation.emit({
+      type: 'tabLongPress',
+      target: state.routes[index].key,
+    });
+  }, [navigation, state.routes]);
 
   return (
     <View className="absolute bottom-0 left-0 right-0 z-50">
-      {/* Overlay transparente com blur */}
-      <View className="absolute top-0 left-0 right-0 bottom-0 bg-black/30" style={{
-        backdropFilter: 'blur(10px)',
-      }} />
+      {/* Overlay otimizado */}
+      <View 
+        className="absolute inset-0 bg-black/30"
+        style={{ backdropFilter: 'blur(10px)' }}
+      />
       
       <SafeAreaView className="bg-transparent">
         <View className="flex-row h-18 px-2 py-2 bg-transparent">
           {state.routes.map((route: any, index: number) => {
-            const { options } = descriptors[route.key];
-            const isFocused = state.index === index;
-
-            const onPress = () => {
-              const event = navigation.emit({
-                type: 'tabPress',
-                target: route.key,
-                canPreventDefault: true,
-              });
-
-              if (!isFocused && !event.defaultPrevented) {
-                navigation.navigate(route.name);
-              }
-            };
-
-            const onLongPress = () => {
-              navigation.emit({
-                type: 'tabLongPress',
-                target: route.key,
-              });
-            };
+            const { options } = descriptors[route.key] || {};
+            const isFocused = currentRoute ? 
+              currentRoute === route.name : 
+              state.index === index;
 
             return (
-              <TouchableOpacity
+              <TabButton
                 key={route.key}
-                accessibilityRole="button"
-                accessibilityState={isFocused ? { selected: true } : {}}
-                accessibilityLabel={options.tabBarAccessibilityLabel}
-                testID={options.tabBarTestID}
-                onPress={onPress}
-                onLongPress={onLongPress}
-                className="flex-1 items-center justify-center px-1"
-                activeOpacity={0.7}
-              >
-                <View className="items-center justify-center py-1">
-                  {getTabIcon(route.name, isFocused)}
-                  <Text className={`text-xs font-medium mt-1 text-center ${
-                    isFocused 
-                      ? 'text-white font-semibold' 
-                      : 'text-gray-400'
-                  }`}>
-                    {getTabLabel(route.name)}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                route={route}
+                index={index}
+                isFocused={isFocused}
+                onPress={() => handleTabPress(route.name, index)}
+                onLongPress={() => handleTabLongPress(index)}
+                options={options}
+              />
             );
           })}
         </View>
       </SafeAreaView>
     </View>
   );
-};
+});

@@ -8,7 +8,6 @@ import {
   Image,
   Animated,
 } from 'react-native';
-import { LinearGradient } from 'react-native-linear-gradient';
 
 interface HomeHeaderProps {
   navigation: any;
@@ -40,28 +39,25 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({ navigation, scrollY }) =
   };
 
   return (
-    <View className="absolute top-0 left-0 right-0 z-50 h-32">
+    <SafeAreaView className="absolute top-3 left-0 right-0 z-50 h-32">
       <StatusBar 
         barStyle="light-content"
         backgroundColor="transparent"
         translucent
       />
       
-      {/* Gradiente condicional */}
+      {/* Alternative gradient using View with opacity */}
       {showBackground && (
-        <LinearGradient
-          colors={['rgba(0, 0, 0, 0.9)', 'rgba(0, 0, 0, 0.7)', 'rgba(0, 0, 0, 0.3)', 'transparent']}
-          className="absolute top-0 left-0 right-0 h-32"
-        />
+        <View className="absolute top-0 left-0 right-0 h-16 bg-black opacity-80" />
       )}
       
       <SafeAreaView className="flex-1 px-4 pt-3">
-
         <View className="flex-row items-center justify-start px-2">
-                    <Image 
+          <Image 
             source={require('../../../assets/icon.png')}
             className="w-20 h-8"
-            resizeMode="contain" />
+            resizeMode="contain" 
+          />
           {categories.map((category) => (
             <TouchableOpacity
               key={category.id}
@@ -82,6 +78,6 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({ navigation, scrollY }) =
           ))}
         </View>
       </SafeAreaView>
-    </View>
+    </SafeAreaView>
   );
 };

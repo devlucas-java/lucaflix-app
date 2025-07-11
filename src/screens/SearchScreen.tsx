@@ -1,393 +1,284 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
-  Image,
-  ActivityIndicator,
-  Alert,
-  StatusBar,
   SafeAreaView,
   ScrollView,
-  Dimensions,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
 import { SearchService } from '../service/searchService';
 import { movieService } from '../service/movieService';
 import { serieService } from '../service/seriesService';
+import { animeService } from '../service/animeService';
+import { MediaGrid } from '../components/MediaGrid';
 import type {
   PaginatedResponseDTO,
-  MovieCompleteDTO,
-  SerieCompleteDTO,
   MovieSimpleDTO,
   SerieSimpleDTO,
   AnimeSimpleDTO,
-  SearchFilters
+  MediaComplete,
 } from '../types/mediaTypes';
 import { Type, Categoria, CATEGORIA_LABELS, TIPO_LABELS } from '../types/mediaTypes';
 
-const { width } = Dimensions.get('window');
-
-interface SearchScreenProps {
-  navigation: any;
-}
-
-const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
-  // Estados principais
+const SearchScreen: React.FC = () => {
+  const navigation = useNavigation();
   const [searchResults, setSearchResults] = useState<PaginatedResponseDTO<MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
-
-  // Estados dos filtros
-  const [filters, setFilters] = useState<SearchFilters>({
-    texto: "",
-    categoria: "",
-    tipo: "all",
-  });
+  const [searchText, setSearchText] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedType, setSelectedType] = useState("all");
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
-  const [showFilters, setShowFilters] = useState(false);
 
-  // Instância do serviço
   const searchService = new SearchService();
 
-  // Função para buscar
   const performSearch = useCallback(
-    async (searchFilters: SearchFilters, page: number = 0, append: boolean = false) => {
-      if (page === 0) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-      setError(null);
-
+    async (page: number = 0) => {
+      if (!searchText.trim() && !selectedCategory && selectedType === "all") return;
+      
+      setLoading(page === 0);
+      
       try {
         const response = await searchService.searchMedia({
-          texto: searchFilters.texto || undefined,
-          categoria: searchFilters.categoria || undefined,
-          tipo: searchFilters.tipo,
+          texto: searchText.trim() || undefined,
+          categoria: selectedCategory || undefined,
+          tipo: selectedType,
           page,
           size: 20,
         });
 
-        if (append && searchResults) {
-          setSearchResults({
-            ...response,
-            content: [...searchResults.content, ...response.content],
-          });
-        } else {
+        if (page === 0) {
           setSearchResults(response);
+        } else {
+          setSearchResults(prev => prev ? {
+            ...response,
+            content: [...prev.content, ...response.content]
+          } : response);
         }
-
-        if (response.totalElements === 0 && (searchFilters.texto || searchFilters.categoria || searchFilters.tipo !== "all")) {
-          setError("Nenhum resultado encontrado para os critérios de busca.");
-        }
-      } catch (err: any) {
-        setError(err.message || "Erro ao realizar busca. Tente novamente.");
-        console.error("Search error:", err);
-        if (!append) {
-          setSearchResults(null);
-        }
+      } catch (error) {
+        Alert.alert("Erro", "Erro ao realizar busca. Tente novamente.");
       } finally {
         setLoading(false);
-        setLoadingMore(false);
       }
     },
-    [searchService, searchResults]
+    [searchText, selectedCategory, selectedType, searchService]
   );
 
-  // Handlers para filtros
-  const handleFilterChange = (key: keyof SearchFilters, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+  const handleSearch = () => {
     setCurrentPage(0);
-
-    if (key !== "texto") {
-      setSearchResults(null);
-      setError(null);
-    }
+    performSearch(0);
   };
 
-  const handleSearchSubmit = () => {
-    setCurrentPage(0);
-    if (filters.texto.trim() || filters.categoria || filters.tipo !== "all") {
-      performSearch(filters, 0);
-    } else {
-      setSearchResults(null);
-      setError(null);
-    }
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    performSearch(page);
   };
 
-  const handleClearFilters = () => {
-    const clearedFilters: SearchFilters = {
-      texto: "",
-      categoria: "",
-      tipo: "all",
-    };
-    setFilters(clearedFilters);
-    setCurrentPage(0);
-    setSearchResults(null);
-    setError(null);
-  };
-
-  // Carregar mais resultados
-  const loadMoreResults = () => {
-    if (searchResults && !searchResults.last && !loadingMore) {
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      performSearch(filters, nextPage, true);
-    }
-  };
-
-  // Função para abrir detalhes da mídia
   const handleMediaPress = async (media: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO) => {
     try {
-      const isMovie = media.type === Type.MOVIE || ("duracaoMinutos" in media && !("totalTemporadas" in media));
+      let completeMedia: MediaComplete;
       
-      let completeMedia: MovieCompleteDTO | SerieCompleteDTO;
-      
-      if (isMovie) {
+      if (media.type === Type.MOVIE) {
         completeMedia = await movieService.getMovieById(media.id);
-      } else {
+      } else if (media.type === Type.SERIE) {
         completeMedia = await serieService.getSerieById(media.id);
+      } else {
+        completeMedia = await animeService.getAnimeById(media.id);
       }
 
-      navigation.navigate('MediaDetail', { media: completeMedia });
+      navigation.navigate('MediaScreen', { media: completeMedia });
     } catch (error) {
       console.error("Error loading media details:", error);
-      Alert.alert("Erro", "Não foi possível carregar os detalhes da mídia.");
+      // Fallback: navegar com dados básicos
+      navigation.navigate('MediaScreen', { media });
     }
   };
 
-  // Renderizar item da lista
-  const renderMediaItem = ({ item }: { item: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO }) => (
-    <TouchableOpacity
-      className="mb-4 bg-gray-800 rounded-lg overflow-hidden"
-      style={{ width: (width - 48) / 2 }}
-      onPress={() => handleMediaPress(item)}
-    >
-      <Image
-        source={{ uri: item.posterURL1 }}
-        className="w-full h-64"
-        resizeMode="cover"
-      />
-      <View className="p-3">
-        <Text className="text-white font-semibold text-sm" numberOfLines={2}>
-          {item.title}
-        </Text>
-<View className="flex-row items-center mt-1">
-  <Text className="text-gray-400 text-xs">
-    {new Date(item.anoLancamento).getFullYear()}
-  </Text>
-
-  {Array.isArray(item.categoria) && item.categoria.length > 0 && (
-    <View className="flex-row flex-wrap ml-2">
-      {item.categoria.map((cat: string, index: number) => (
-        <Text key={cat} className="text-gray-400 text-xs mr-1">
-          {index > 0 && '• '} {CATEGORIA_LABELS[cat] ?? cat}
-        </Text>
-      ))}
-    </View>
-  )}
-</View>
-
-        <View className="flex-row items-center mt-1">
-          <Icon 
-            name={item.type === Type.MOVIE ? "movie" : "tv"} 
-            size={12} 
-            color="#EF4444" 
-          />
-          <Text className="text-red-500 text-xs ml-1">
-            {item.type === Type.MOVIE ? "Filme" : item.type === Type.SERIE ? "Série" : "Anime"}
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  // Renderizar footer da lista
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    
-    return (
-      <View className="py-4 flex-row justify-center">
-        <ActivityIndicator size="small" color="#EF4444" />
-        <Text className="text-gray-400 ml-2">Carregando mais...</Text>
-      </View>
-    );
+  const clearFilters = () => {
+    setSearchText("");
+    setSelectedCategory("");
+    setSelectedType("all");
+    setSearchResults(null);
+    setCurrentPage(0);
   };
 
-  const hasActiveFilters = filters.texto.trim() || filters.categoria || filters.tipo !== "all";
+  const hasActiveFilters = searchText.trim() || selectedCategory || selectedType !== "all";
 
   return (
     <SafeAreaView className="flex-1 bg-black">
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
-      
-      {/* Header com busca */}
-      <View className="px-4 py-3 bg-black border-b border-gray-800">
-        <View className="flex-row items-center space-x-3">
-          <View className="flex-1 flex-row items-center bg-gray-900 rounded-lg px-3 py-2">
-            <Icon name="search" size={20} color="#6B7280" />
+      <View className='h-8'/>
+      {/* Header com busca e filtros */}
+      <View className="px-4 py-3 bg-black">
+        {/* Barra de busca */}
+        <View className="flex-row max-h-14 items-center space-x-2 mb-3">
+          <View className="flex-1 flex-row items-center bg-gray-900 rounded-lg px-3 py-1">
+            <Icon name="search" size={20} color="#9CA3AF" />
             <TextInput
               className="flex-1 text-white ml-2 text-base"
               placeholder="Buscar filmes, séries e animes..."
-              placeholderTextColor="#6B7280"
-              value={filters.texto}
-              onChangeText={(text) => handleFilterChange("texto", text)}
-              onSubmitEditing={handleSearchSubmit}
+              placeholderTextColor="#9CA3AF"
+              value={searchText}
+              onChangeText={setSearchText}
+              onSubmitEditing={handleSearch}
               returnKeyType="search"
             />
           </View>
           
           <TouchableOpacity
-            className={`p-2 rounded-lg ${showFilters ? 'bg-red-600' : 'bg-gray-800'}`}
-            onPress={() => setShowFilters(!showFilters)}
+            className="bg-red-600 rounded-lg px-4 py-3"
+            onPress={handleSearch}
           >
-            <Icon name="filter-list" size={20} color="white" />
+            <Text className="text-white font-semibold">Buscar</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Filtros expansíveis */}
-        {showFilters && (
-          <View className="mt-4 bg-gray-900 rounded-lg p-4">
-            {/* Filtro de categoria */}
-            <View className="mb-4">
-              <Text className="text-gray-300 text-sm font-medium mb-2">Categoria</Text>
-              <View className="bg-gray-800 rounded-lg">
-                <Picker
-                  selectedValue={filters.categoria}
-                  onValueChange={(value) => handleFilterChange("categoria", value)}
-                  style={{ color: 'white' }}
-                  dropdownIconColor="white"
-                >
-                  <Picker.Item label="Todas as categorias" value="" />
-                  {Object.entries(CATEGORIA_LABELS).map(([key, label]) => (
-                    <Picker.Item key={key} label={label} value={key} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
+        {/* Filtros Netflix Style */}
+        <View className="flex-row items-center space-x-3">
+          {/* Filtro Categorias */}
+          <TouchableOpacity
+            className="flex-row items-center bg-gray-900 rounded-lg px-3 py-2 border border-gray-700"
+            onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+          >
+            <Text className="text-white text-sm mr-2">
+              {selectedCategory ? CATEGORIA_LABELS[selectedCategory] : "Categorias"}
+            </Text>
+            <Icon 
+              name={showCategoryPicker ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+              size={18} 
+              color="#9CA3AF" 
+            />
+          </TouchableOpacity>
 
-            {/* Filtro de tipo */}
-            <View className="mb-4">
-              <Text className="text-gray-300 text-sm font-medium mb-2">Tipo</Text>
-              <View className="bg-gray-800 rounded-lg">
-                <Picker
-                  selectedValue={filters.tipo}
-                  onValueChange={(value) => handleFilterChange("tipo", value)}
-                  style={{ color: 'white' }}
-                  dropdownIconColor="white"
-                >
-                  {Object.entries(TIPO_LABELS).map(([key, label]) => (
-                    <Picker.Item key={key} label={label} value={key} />
-                  ))}
-                </Picker>
-              </View>
-            </View>
+          {/* Filtro Mídia */}
+          <TouchableOpacity
+            className="flex-row items-center bg-gray-900 rounded-lg px-3 py-2 border border-gray-700"
+            onPress={() => setShowTypePicker(!showTypePicker)}
+          >
+            <Text className="text-white text-sm mr-2">
+              {TIPO_LABELS[selectedType]}
+            </Text>
+            <Icon 
+              name={showTypePicker ? "keyboard-arrow-up" : "keyboard-arrow-down"} 
+              size={18} 
+              color="#9CA3AF" 
+            />
+          </TouchableOpacity>
 
-            {/* Botões de ação */}
-            <View className="flex-row space-x-3">
-              <TouchableOpacity
-                className="flex-1 bg-red-600 rounded-lg py-3"
-                onPress={handleSearchSubmit}
-              >
-                <Text className="text-white text-center font-semibold">Buscar</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                className={`flex-1 rounded-lg py-3 ${hasActiveFilters ? 'bg-gray-700' : 'bg-gray-800'}`}
-                onPress={handleClearFilters}
-                disabled={!hasActiveFilters}
-              >
-                <Text className={`text-center font-semibold ${hasActiveFilters ? 'text-white' : 'text-gray-500'}`}>
-                  Limpar
-                </Text>
-              </TouchableOpacity>
-            </View>
+          {/* Limpar filtros */}
+          {hasActiveFilters && (
+            <TouchableOpacity
+              className="bg-gray-800 rounded-lg px-3 py-2"
+              onPress={clearFilters}
+            >
+              <Text className="text-red-400 text-sm">Limpar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-            {/* Indicadores de filtros ativos */}
-            {hasActiveFilters && (
-              <View className="flex-row flex-wrap mt-3">
-                {filters.texto.trim() && (
-                  <View className="bg-red-600 rounded-full px-3 py-1 mr-2 mb-2">
-                    <Text className="text-white text-xs">
-                      Texto: "{filters.texto}"
-                    </Text>
-                  </View>
-                )}
-                {filters.categoria && (
-                  <View className="bg-red-600 rounded-full px-3 py-1 mr-2 mb-2">
-                    <Text className="text-white text-xs">
-                      {CATEGORIA_LABELS[filters.categoria]}
-                    </Text>
-                  </View>
-                )}
-                {filters.tipo !== "all" && (
-                  <View className="bg-red-600 rounded-full px-3 py-1 mr-2 mb-2">
-                    <Text className="text-white text-xs">
-                      {TIPO_LABELS[filters.tipo]}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
+        {/* Picker de Categorias */}
+        {showCategoryPicker && (
+          <View className="mt-3 bg-gray-900 rounded-lg border border-gray-700">
+            <Picker
+              selectedValue={selectedCategory}
+              onValueChange={(value) => {
+                setSelectedCategory(value);
+                setShowCategoryPicker(false);
+              }}
+              style={{ color: 'white' }}
+              dropdownIconColor="white"
+            >
+              <Picker.Item label="Todas as categorias" value="" />
+              {Object.entries(CATEGORIA_LABELS).map(([key, label]) => (
+                <Picker.Item key={key} label={label} value={key} />
+              ))}
+            </Picker>
           </View>
+        )}
+
+        {/* Picker de Tipos */}
+        {showTypePicker && (
+          <View className="mt-3 bg-gray-900 rounded-lg border border-gray-700">
+            <Picker
+              selectedValue={selectedType}
+              onValueChange={(value) => {
+                setSelectedType(value);
+                setShowTypePicker(false);
+              }}
+              style={{ color: 'white' }}
+              dropdownIconColor="white"
+            >
+              {Object.entries(TIPO_LABELS).map(([key, label]) => (
+                <Picker.Item key={key} label={label} value={key} />
+              ))}
+            </Picker>
+          </View>
+        )}
+
+        {/* Indicadores de filtros ativos */}
+        {hasActiveFilters && (
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            className="mt-3"
+          >
+            <View className="flex-row space-x-2">
+              {searchText.trim() && (
+                <View className="bg-red-600 rounded-full px-3 py-1">
+                  <Text className="text-white text-xs">
+                    "{searchText.trim()}"
+                  </Text>
+                </View>
+              )}
+              {selectedCategory && (
+                <View className="bg-red-600 rounded-full px-3 py-1">
+                  <Text className="text-white text-xs">
+                    {CATEGORIA_LABELS[selectedCategory]}
+                  </Text>
+                </View>
+              )}
+              {selectedType !== "all" && (
+                <View className="bg-red-600 rounded-full px-3 py-1">
+                  <Text className="text-white text-xs">
+                    {TIPO_LABELS[selectedType]}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
         )}
       </View>
 
       {/* Conteúdo principal */}
       <View className="flex-1">
-        {/* Loading inicial */}
-        {loading && (
+        {/* Loading */}
+        {loading && !searchResults && (
           <View className="flex-1 justify-center items-center">
-            <ActivityIndicator size="large" color="#EF4444" />
+            <ActivityIndicator size="large" color="#E50914" />
             <Text className="text-gray-400 mt-2">Buscando conteúdo...</Text>
           </View>
         )}
 
-        {/* Erro */}
-        {error && !loading && (
-          <View className="mx-4 mt-4 bg-red-900/20 border border-red-500 rounded-lg p-4 flex-row items-center">
-            <Icon name="error" size={20} color="#EF4444" />
-            <Text className="text-red-400 ml-2 flex-1">{error}</Text>
-          </View>
-        )}
-
-        {/* Informações da busca */}
-        {searchResults && !loading && (
-          <View className="px-4 py-3 border-b border-gray-800">
-            <Text className="text-gray-400">
-              {searchResults.totalElements > 0 ? (
-                <>
-                  Encontrados{" "}
-                  <Text className="text-white font-semibold">
-                    {searchResults.totalElements.toLocaleString()}
-                  </Text>{" "}
-                  {searchResults.totalElements === 1 ? "resultado" : "resultados"}
-                  {filters.texto && ` para "${filters.texto}"`}
-                </>
-              ) : (
-                "Nenhum resultado encontrado"
-              )}
-            </Text>
-          </View>
-        )}
-
-        {/* Estado vazio */}
+        {/* Estado vazio inicial */}
         {!loading && !searchResults && !hasActiveFilters && (
           <ScrollView className="flex-1" contentContainerStyle={{ flexGrow: 1 }}>
-            <View className="flex-1 justify-center items-center px-4">
-              <Icon name="search" size={64} color="#374151" />
-              <Text className="text-xl font-medium text-white mt-4 mb-2 text-center">
-                Encontre seu próximo filme, série ou anime
+            <View className="flex-1 justify-center items-center px-6">
+              <Icon name="search" size={80} color="#374151" />
+              <Text className="text-2xl font-bold text-white mt-6 mb-3 text-center">
+                O que você quer assistir?
               </Text>
-              <Text className="text-gray-400 text-center mb-6 max-w-xs">
-                Use a busca acima ou navegue pelas categorias para descobrir conteúdo incrível
+              <Text className="text-gray-400 text-center mb-8 text-base leading-6">
+                Encontre filmes, séries e animes incríveis usando nossa busca avançada
               </Text>
               
-              {/* Sugestões de categorias */}
+              {/* Categorias populares */}
+              <Text className="text-white font-semibold mb-4">Categorias populares:</Text>
               <View className="flex-row flex-wrap justify-center">
                 {[
                   { key: Categoria.ACAO, label: "Ação" },
@@ -395,13 +286,17 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
                   { key: Categoria.DRAMA, label: "Drama" },
                   { key: Categoria.TERROR, label: "Terror" },
                   { key: Categoria.ROMANCE, label: "Romance" },
+                  { key: Categoria.FICCAO_CIENTIFICA, label: "Ficção Científica" },
                 ].map(({ key, label }) => (
                   <TouchableOpacity
                     key={key}
-                    className="bg-gray-800 rounded-lg px-4 py-2 m-1"
+                    className="bg-gray-800 rounded-lg px-4 py-2 m-1 border border-gray-700"
                     onPress={() => {
-                      handleFilterChange("categoria", key);
-                      setTimeout(() => performSearch({ ...filters, categoria: key }, 0), 100);
+                      setSelectedCategory(key);
+                      setTimeout(() => {
+                        setCurrentPage(0);
+                        performSearch(0);
+                      }, 100);
                     }}
                   >
                     <Text className="text-gray-300 text-sm">{label}</Text>
@@ -413,37 +308,37 @@ const SearchScreen: React.FC<SearchScreenProps> = ({ navigation }) => {
         )}
 
         {/* Resultados da busca */}
-        {searchResults && searchResults.content.length > 0 && (
-          <FlatList
-            data={searchResults.content}
-            renderItem={renderMediaItem}
-            keyExtractor={(item) => item.id.toString()}
-            numColumns={2}
-            columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 16 }}
-            contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
-            onEndReached={loadMoreResults}
-            onEndReachedThreshold={0.1}
-            ListFooterComponent={renderFooter}
-            showsVerticalScrollIndicator={false}
+        {searchResults && (
+          <MediaGrid
+            data={searchResults}
+            loading={loading}
+            onPageChange={handlePageChange}
+            onMediaInfo={handleMediaPress}
+            gridSize="medium"
           />
         )}
 
-        {/* Sugestões quando não há resultados */}
-        {searchResults && searchResults.totalElements === 0 && hasActiveFilters && (
-          <View className="px-4 py-6">
-            <View className="bg-gray-900 rounded-lg p-4">
-              <Text className="text-white font-medium mb-2">Tente ajustar sua busca:</Text>
-              <Text className="text-gray-400 text-sm mb-1">• Verifique a ortografia das palavras</Text>
-              <Text className="text-gray-400 text-sm mb-1">• Use termos mais gerais</Text>
-              <Text className="text-gray-400 text-sm mb-1">• Remova alguns filtros</Text>
-              <Text className="text-gray-400 text-sm mb-3">• Tente categorias relacionadas</Text>
-              <TouchableOpacity onPress={handleClearFilters}>
-                <Text className="text-red-400 text-sm">Limpar todos os filtros →</Text>
-              </TouchableOpacity>
-            </View>
+        {/* Nenhum resultado encontrado */}
+        {searchResults && searchResults.totalElements === 0 && (
+          <View className="flex-1 justify-center items-center px-6">
+            <Icon name="search-off" size={64} color="#374151" />
+            <Text className="text-xl font-semibold text-white mt-4 mb-2 text-center">
+              Nenhum resultado encontrado
+            </Text>
+            <Text className="text-gray-400 text-center mb-6">
+              Tente ajustar seus filtros ou usar termos diferentes
+            </Text>
+            
+            <TouchableOpacity
+              className="bg-red-600 rounded-lg px-6 py-3"
+              onPress={clearFilters}
+            >
+              <Text className="text-white font-semibold">Limpar filtros</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
+      <View className='h-14'/>
     </SafeAreaView>
   );
 };

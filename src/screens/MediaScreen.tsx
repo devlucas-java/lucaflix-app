@@ -5,88 +5,36 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  StyleSheet,
   Dimensions,
   StatusBar,
   Linking,
   Alert,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import Ionicons from 'react-native-vector-icons/Ionicons';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import {
+  MediaComplete,
+  isMovieComplete,
+  isSerieComplete,
+  isAnimeComplete,
+  CATEGORIA_LABELS,
+} from '../types/mediaTypes';
+import authService from '../service/authService';
 
 const { width, height } = Dimensions.get('window');
 
-// Ícones SVG
-const PlayIcon = ({ size = 24, color = '#000' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
-    <Path d="M8 5v14l11-7z" />
-  </Svg>
-);
-
-const ArrowLeftIcon = ({ size = 24, color = '#000' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <Path d="M19 12H5" />
-    <Path d="M12 19l-7-7 7-7" />
-  </Svg>
-);
-
-const EditIcon = ({ size = 24, color = '#000' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <Path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-    <Path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-  </Svg>
-);
-
-const VolumeIcon = ({ size = 24, color = '#000' }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <Path d="M11 5L6 9H2v6h4l5 4V5z" />
-    <Path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-  </Svg>
-);
-
-// Mock types (you can replace with your actual types)
-interface MediaProps {
-  title: string;
-  sinopse: string;
-  anoLancamento?: number;
-  minAge: string;
-  categoria: string[];
-  type: 'MOVIE' | 'SERIE' | 'ANIME';
-  duracaoMinutos?: number;
-  totalTemporadas?: number;
-  totalEpisodios?: number;
-  backdropURL1?: string;
-  backdropURL2?: string;
-  backdropURL3?: string;
-  backdropURL4?: string;
-  posterURL1?: string;
-  posterURL2?: string;
-  embed1?: string;
-  embed2?: string;
-  temporadas?: Array<{
-    numeroTemporada: number;
-    episodios: Array<{
-      id: number;
-      numeroEpisodio: number;
-      title: string;
-      sinopse: string;
-      duracaoMinutos: number;
-      embed1: string;
-    }>;
-  }>;
-}
-
 interface MediaScreenProps {
-  media: MediaProps;
-  onBack: () => void;
+  media?: MediaComplete;
+  onBack?: () => void;
   onMediaSelect?: (media: any) => void;
   onMediaChange?: (media: any) => void;
 }
 
-// Mock auth service
-const authService = {
-  isAuthenticated: () => true,
-  isAdmin: () => true,
-};
+interface RouteParams {
+  media: MediaComplete;
+}
 
 // Função para verificar se URL é válida
 const isValidUrl = (url: string | null | undefined): boolean => {
@@ -103,7 +51,7 @@ const isValidUrl = (url: string | null | undefined): boolean => {
 };
 
 // Função para obter backdrop válido
-const getValidBackdrop = (media: MediaProps): string => {
+const getValidBackdrop = (media: MediaComplete): string => {
   const backdrops = [
     media.backdropURL1,
     media.backdropURL2,
@@ -119,39 +67,6 @@ const getValidBackdrop = (media: MediaProps): string => {
   return posters.length > 0 ? posters[0]! : '';
 };
 
-// Type guards
-const isMovieComplete = (media: MediaProps): boolean => {
-  return 'duracaoMinutos' in media && !('totalTemporadas' in media);
-};
-
-const isSerieComplete = (media: MediaProps): boolean => {
-  return 'totalTemporadas' in media && media.type === 'SERIE';
-};
-
-const isAnimeComplete = (media: MediaProps): boolean => {
-  return 'totalTemporadas' in media && media.type === 'ANIME';
-};
-
-// Tradução das categorias
-const getCategoryName = (categoria: string): string => {
-  const categoryMap: { [key: string]: string } = {
-    ACAO: 'Ação',
-    COMEDIA: 'Comédia',
-    DRAMA: 'Drama',
-    SUSPENSE: 'Suspense',
-    TERROR: 'Terror',
-    ROMANCE: 'Romance',
-    FICCAO_CIENTIFICA: 'Ficção Científica',
-    AVENTURA: 'Aventura',
-    FANTASIA: 'Fantasia',
-    DOCUMENTARIO: 'Documentário',
-    ANIMACAO: 'Animação',
-    INFANTIL: 'Infantil',
-    DESCONHECIDA: 'Desconhecida',
-  };
-  return categoryMap[categoria] || categoria;
-};
-
 const formatDuration = (minutes: number): string => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
@@ -159,14 +74,35 @@ const formatDuration = (minutes: number): string => {
 };
 
 export const MediaScreen: React.FC<MediaScreenProps> = ({
-  media,
+  media: propMedia,
   onBack,
   onMediaSelect,
   onMediaChange,
 }) => {
+  const navigation = useNavigation();
+  const route = useRoute<{ params: RouteParams }>();
+  
+  // Usar mídia dos props ou da rota
+  const media = propMedia || route.params?.media;
+  
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [showTrailer, setShowTrailer] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  if (!media) {
+    return (
+      <View className="flex-1 bg-black justify-center items-center">
+        <Text className="text-white text-lg">Erro: Mídia não encontrada</Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          className="mt-4 bg-red-600 px-4 py-2 rounded"
+        >
+          <Text className="text-white">Voltar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   const isMovie = isMovieComplete(media);
   const isSerie = isSerieComplete(media);
@@ -174,7 +110,15 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
 
   // Verificar se o usuário é admin
   const isLoggedIn = authService.isAuthenticated();
-  const isAdmin = isLoggedIn && authService.isAdmin();
+  const isAdmin = authService.isAdmin();
+
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else {
+      navigation.goBack();
+    }
+  };
 
   const handleImageError = (imageUrl: string) => {
     setImageErrors(prev => new Set([...prev, imageUrl]));
@@ -187,10 +131,17 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
     }
   };
 
+  const handlePlayTrailer = () => {
+    if (media.trailer && media.trailer.trim() !== '') {
+      setShowTrailer(true);
+      Linking.openURL(media.trailer);
+    }
+  };
+
   const handleUpdateMedia = () => {
     let mediaType = '';
     if (isMovie) mediaType = 'filme';
-    else if (isSerie) mediaType = 'serie';
+    else if (isSerie) mediaType = 'série';
     else if (isAnime) mediaType = 'anime';
     
     Alert.alert('Atualizar', `Atualizar ${mediaType}: ${media.title}`);
@@ -218,7 +169,7 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
     return '';
   };
 
-  const getMovieEpisodes = (movie: MediaProps) => {
+  const getMovieEpisodes = (movie: any) => {
     const episodes = [];
 
     if (movie.embed1 && movie.embed1.trim() !== '') {
@@ -228,7 +179,7 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
         title: `${movie.title} - Parte 1`,
         sinopse: movie.sinopse,
         duracaoMinutos: Math.floor((movie.duracaoMinutos || 120) / 2),
-        embed: movie.embed1,
+        embed1: movie.embed1,
       });
     }
 
@@ -239,7 +190,7 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
         title: `${movie.title} - Parte 2`,
         sinopse: movie.sinopse,
         duracaoMinutos: Math.ceil((movie.duracaoMinutos || 120) / 2),
-        embed: movie.embed2,
+        embed1: movie.embed2,
       });
     }
 
@@ -250,512 +201,266 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
   const shouldShowBackdrop = backdropUrl && !imageErrors.has(backdropUrl);
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-black">
       <StatusBar barStyle="light-content" backgroundColor="#000" />
       
       <ScrollView 
         ref={scrollViewRef}
-        style={styles.scrollView}
+        className="flex-1"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header com Hero Section */}
-        <View style={styles.heroSection}>
-          {/* Backdrop Image */}
-          <View style={styles.backdropContainer}>
+        {/* Hero Section */}
+        <View className="relative">
+          {/* Backdrop/Trailer Container */}
+          <View className="relative" style={{ height: height * 0.65 }}>
             {shouldShowBackdrop ? (
               <Image
                 source={{ uri: backdropUrl }}
-                style={styles.backdrop}
+                className="w-full h-full"
+                style={{ resizeMode: 'cover' }}
                 onError={() => handleImageError(backdropUrl)}
               />
             ) : (
-              <View style={styles.placeholderBackdrop}>
-                <PlayIcon size={60} color="#6B7280" />
+              <View className="w-full h-full bg-gray-700 justify-center items-center">
+                <Icon name="play-arrow" size={60} color="#6B7280" />
               </View>
             )}
             
             {/* Gradient Overlay */}
-            <View style={styles.gradientOverlay} />
+            <View className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
           </View>
 
           {/* Header Controls */}
-          <View style={styles.headerControls}>
+          <View className="absolute top-10 left-0 right-0 flex-row justify-between items-center px-4 z-10">
             <TouchableOpacity
-              onPress={onBack}
-              style={styles.backButton}
+              onPress={handleBack}
+              className="bg-black/50 rounded-full p-2"
             >
-              <ArrowLeftIcon size={24} color="#fff" />
+              <Icon name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             
             {/* Logo */}
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>LUCAFLIX</Text>
+            <View className="bg-red-600 rounded px-3 py-1">
+              <Text className="text-white font-bold text-sm">LUCAFLIX</Text>
             </View>
             
             {isAdmin && (
               <TouchableOpacity
                 onPress={handleUpdateMedia}
-                style={styles.editButton}
+                className="bg-blue-600 rounded-full p-2"
               >
-                <EditIcon size={20} color="#fff" />
+                <Icon name="edit" size={20} color="#fff" />
               </TouchableOpacity>
             )}
           </View>
 
           {/* Title and Main Info */}
-          <View style={styles.titleSection}>
-            <Text style={styles.title}>{media.title}</Text>
+          <View className="absolute bottom-0 left-0 right-0 p-4 z-10">
+            <Text className="text-white text-3xl font-bold mb-2">{media.title}</Text>
             
             {/* Media Info */}
-            <View style={styles.mediaInfo}>
-              <Text style={styles.mediaInfoText}>
-                {media.anoLancamento ?? 'N/A'}
+            <View className="flex-row flex-wrap items-center mb-4 gap-2">
+              <Text className="text-white text-base font-medium">
+                {media.anoLancamento}
               </Text>
-              <Text style={styles.mediaInfoText}>
+              <Text className="text-white text-base font-medium">
                 {getSeasonEpisodeInfo()}
               </Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>HD</Text>
+              <View className="bg-gray-700 px-2 py-1 rounded">
+                <Text className="text-white text-xs">HD</Text>
               </View>
-              <View style={styles.badge}>
-                <VolumeIcon size={12} color="#fff" />
-              </View>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>CC</Text>
+              <View className="bg-gray-700 px-2 py-1 rounded">
+                <Text className="text-white text-xs">CC</Text>
               </View>
               {isAnime && (
-                <View style={styles.animeBadge}>
-                  <Text style={styles.badgeText}>ANIME</Text>
+                <View className="bg-purple-600 px-2 py-1 rounded">
+                  <Text className="text-white text-xs">ANIME</Text>
                 </View>
               )}
             </View>
 
             {/* Age Rating */}
-            <View style={styles.ageRating}>
-              <View style={styles.ageRatingBadge}>
-                <Text style={styles.ageRatingText}>{media.minAge}</Text>
+            <View className="flex-row items-center mb-4">
+              <View className="bg-yellow-600 px-2 py-1 rounded">
+                <Text className="text-black text-sm font-bold">{media.minAge}</Text>
               </View>
-              <Text style={styles.ageRatingLabel}>violência</Text>
+              <Text className="text-white ml-2 text-sm">classificação</Text>
             </View>
 
-            {/* Play Button */}
-            <TouchableOpacity
-              onPress={() => {
-                if (isMovie) {
-                  handlePlayVideo(media.embed1 || '');
-                } else if (media.temporadas && media.temporadas.length > 0) {
-                  const firstEpisode = media.temporadas[0]?.episodios?.[0];
-                  if (firstEpisode) {
-                    handlePlayVideo(firstEpisode.embed1);
+            {/* Action Buttons */}
+            <View className="flex-row gap-3">
+              {/* Play Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  if (isMovie) {
+                    handlePlayVideo(media.embed1 || '');
+                  } else if (media.temporadas && media.temporadas.length > 0) {
+                    const firstEpisode = media.temporadas[0]?.episodios?.[0];
+                    if (firstEpisode) {
+                      handlePlayVideo(firstEpisode.embed1);
+                    }
                   }
-                }
-              }}
-              style={styles.playButton}
-            >
-              <PlayIcon size={24} color="#000" />
-              <Text style={styles.playButtonText}>Assistir</Text>
-            </TouchableOpacity>
+                }}
+                className="bg-white rounded-md flex-row items-center justify-center py-3 px-6 flex-1"
+              >
+                <Icon name="play-arrow" size={20} color="#000" />
+                <Text className="text-black text-lg font-bold ml-2">Assistir</Text>
+              </TouchableOpacity>
+
+              {/* Trailer Button */}
+              {media.trailer && (
+                <TouchableOpacity
+                  onPress={handlePlayTrailer}
+                  className="bg-gray-600/80 rounded-md flex-row items-center justify-center py-3 px-4"
+                >
+                  <Icon name="info" size={20} color="#fff" />
+                  <Text className="text-white text-sm font-medium ml-1">Trailer</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Secondary Actions */}
+            <View className="flex-row items-center justify-between mt-4">
+              <View className="flex-row gap-6">
+                <TouchableOpacity className="items-center">
+                  <Icon name="add" size={24} color="#fff" />
+                  <Text className="text-white text-xs mt-1">Minha Lista</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity className="items-center">
+                  <Ionicons name="thumbs-up" size={24} color="#fff" />
+                  <Text className="text-white text-xs mt-1">Avaliar</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity className="items-center">
+                  <MaterialCommunityIcons name="download" size={24} color="#fff" />
+                  <Text className="text-white text-xs mt-1">Download</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Content Sections */}
-        <View style={styles.contentSection}>
+        {/* Content Section */}
+        <View className="px-4 py-6">
           {/* Synopsis */}
-          <View style={styles.synopsisSection}>
-            <Text style={styles.synopsis}>{media.sinopse}</Text>
+          <View className="mb-6">
+            <Text className="text-white text-base leading-6 mb-4">{media.sinopse}</Text>
           </View>
 
           {/* Additional Info */}
-          <View style={styles.additionalInfo}>
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Reparto: </Text>
-              <Text style={styles.infoValue}>
+          <View className="mb-6">
+            <View className="flex-row mb-2">
+              <Text className="text-gray-400 text-sm">Elenco: </Text>
+              <Text className="text-white text-sm flex-1">
                 {isAnime 
                   ? 'Elenco de dublagem japonês original' 
-                  : 'Arnold Schwarzenegger, Monica Barbaro, Milan Carter,'
+                  : 'Elenco principal do filme/série'
                 }
               </Text>
-              <Text style={styles.infoMore}> más</Text>
+              <Text className="text-red-600 text-sm"> mais</Text>
             </View>
             
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Géneros: </Text>
-              <Text style={styles.infoValue}>
-                {media.categoria.map(getCategoryName).join(', ')}
+            <View className="flex-row mb-2">
+              <Text className="text-gray-400 text-sm">Gêneros: </Text>
+              <Text className="text-white text-sm flex-1">
+                {media.categoria.map(cat => CATEGORIA_LABELS[cat]).join(', ')}
               </Text>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Esta {getMediaTypeLabel()} es: </Text>
-              <Text style={styles.infoValue}>
+            <View className="flex-row mb-2">
+              <Text className="text-gray-400 text-sm">Esta {getMediaTypeLabel()} é: </Text>
+              <Text className="text-white text-sm flex-1">
                 {isAnime 
                   ? 'Emocionante, Aventura, Japonês' 
-                  : 'Peculiar, Irreverente, Emocionante'
+                  : 'Envolvente, Dramático, Cativante'
                 }
               </Text>
             </View>
           </View>
 
           {/* Episodes Section */}
-          <View style={styles.episodesSection}>
-            <View style={styles.episodeHeader}>
-              <Text style={styles.episodeTitle}>
+          <View className="mb-6">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-white text-xl font-bold">
                 {isMovie ? 'Partes disponíveis' : 'Episódios'}
               </Text>
               
               {((isSerie || isAnime) && media.temporadas && media.temporadas.length > 1) && (
-                <View style={styles.seasonSelector}>
-                  <Text style={styles.seasonText}>
+                <View className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2">
+                  <Text className="text-white text-sm">
                     Temporada {selectedSeason}
                   </Text>
                 </View>
               )}
             </View>
 
-            {/* Episodes List */}
-            <View style={styles.episodesList}>
-              {isMovie && getMovieEpisodes(media).map((episode) => (
-                <TouchableOpacity
-                  key={episode.id}
-                  onPress={() => handlePlayVideo(episode.embed)}
-                  style={styles.episodeItem}
-                >
-                  <View style={styles.episodeNumber}>
-                    <Text style={styles.episodeNumberText}>
-                      {episode.numeroEpisodio}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.episodeInfo}>
-                    <Text style={styles.episodeTitle}>
-                      {episode.title}
-                    </Text>
-                    <Text style={styles.episodeDuration}>
-                      {formatDuration(episode.duracaoMinutos)}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.episodePlayIcon}>
-                    <PlayIcon size={20} color="#fff" />
-                  </View>
-                </TouchableOpacity>
-              ))}
 
-              {((isSerie || isAnime) && media.temporadas) &&
-                media.temporadas
-                  .find(t => t.numeroTemporada === selectedSeason)
-                  ?.episodios?.map((episode) => (
-                    <TouchableOpacity
-                      key={episode.id}
-                      onPress={() => handlePlayVideo(episode.embed1)}
-                      style={styles.episodeItem}
-                    >
-                      <View style={styles.episodeNumber}>
-                        <Text style={styles.episodeNumberText}>
-                          {episode.numeroEpisodio}
-                        </Text>
-                      </View>
-                      
-                      <View style={styles.episodeInfo}>
-                        <Text style={styles.episodeTitle}>
-                          {episode.title}
-                        </Text>
-                        <Text style={styles.episodeDuration}>
-                          {formatDuration(episode.duracaoMinutos)}
-                        </Text>
-                        <Text style={styles.episodeSynopsis} numberOfLines={2}>
-                          {episode.sinopse}
-                        </Text>
-                      </View>
-                      
-                      <View style={styles.episodePlayIcon}>
-                        <PlayIcon size={20} color="#fff" />
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-            </View>
+            {/* Episodes List */}
+            <View className="gap-2">
+  {isMovie && getMovieEpisodes(media).map((episode) => (
+    <TouchableOpacity
+      key={episode.id}
+      onPress={() => handlePlayVideo(episode.embed1)}
+      className="bg-gray-900 rounded-xl p-3 flex-row items-center"
+    >
+      <View className="w-16 h-16 bg-gray-700 rounded-lg justify-center items-center mr-3">
+        <Text className="text-white font-bold text-lg">
+          {episode.numeroEpisodio}
+        </Text>
+      </View>
+      
+      <View className="flex-1">
+        <Text className="text-white font-medium text-base mb-1">
+          {episode.title}
+        </Text>
+        <Text className="text-gray-400 text-sm">
+          {formatDuration(episode.duracaoMinutos)}
+        </Text>
+      </View>
+      
+      <View className="ml-3">
+        <Icon name="play" size={20} color="#fff" />
+      </View>
+    </TouchableOpacity>
+  ))}
+
+  {((isSerie || isAnime) && media.temporadas) &&
+    media.temporadas
+      .find(t => t.numeroTemporada === selectedSeason)
+      ?.episodios?.map((episode) => (
+        <TouchableOpacity
+          key={episode.id}
+          onPress={() => handlePlayVideo(episode.embed1)}
+          className="bg-gray-900 rounded-xl p-3 flex-row items-center"
+        >
+          <View className="w-16 h-16 bg-gray-700 rounded-lg justify-center items-center mr-3">
+            <Text className="text-white font-bold text-lg">
+              {episode.numeroEpisodio}
+            </Text>
+          </View>
+          
+          <View className="flex-1">
+            <Text className="text-white font-medium text-base mb-1">
+              {episode.title}
+            </Text>
+            <Text className="text-gray-400 text-sm mb-1">
+              {formatDuration(episode.duracaoMinutos)}
+            </Text>
+            <Text className="text-gray-300 text-xs" numberOfLines={2}>
+              {episode.sinopse}
+            </Text>
+          </View>
+          
+          <View className="ml-3">
+            <Icon name="play" size={20} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      ))}
+</View>
           </View>
         </View>
       </ScrollView>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  heroSection: {
-    position: 'relative',
-  },
-  backdropContainer: {
-    height: height * 0.6,
-    position: 'relative',
-  },
-  backdrop: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  placeholderBackdrop: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#374151',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gradientOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  headerControls: {
-    position: 'absolute',
-    top: 40,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    zIndex: 10,
-  },
-  backButton: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    padding: 8,
-  },
-  logo: {
-    backgroundColor: '#dc2626',
-    borderRadius: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  logoText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
-  editButton: {
-    backgroundColor: '#2563eb',
-    borderRadius: 20,
-    padding: 8,
-  },
-  titleSection: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    zIndex: 10,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  mediaInfo: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    marginBottom: 16,
-    gap: 8,
-  },
-  mediaInfoText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  badge: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 12,
-  },
-  animeBadge: {
-    backgroundColor: '#7c3aed',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  ageRating: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  ageRatingBadge: {
-    backgroundColor: '#d97706',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  ageRatingText: {
-    color: '#000',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  ageRatingLabel: {
-    color: '#fff',
-    marginLeft: 8,
-    fontSize: 14,
-  },
-  playButton: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    width: '100%',
-  },
-  playButtonText: {
-    color: '#000',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  contentSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-  },
-  synopsisSection: {
-    marginBottom: 24,
-  },
-  synopsis: {
-    color: '#fff',
-    fontSize: 16,
-    lineHeight: 24,
-    marginBottom: 16,
-  },
-  additionalInfo: {
-    marginBottom: 24,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    flexWrap: 'wrap',
-  },
-  infoLabel: {
-    color: '#9ca3af',
-    fontSize: 14,
-  },
-  infoValue: {
-    color: '#fff',
-    fontSize: 14,
-    flex: 1,
-  },
-  infoMore: {
-    color: '#dc2626',
-    fontSize: 14,
-  },
-  episodesSection: {
-    marginBottom: 24,
-  },
-  episodeHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  episodeTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  seasonSelector: {
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#4b5563',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  seasonText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  episodesList: {
-    gap: 8,
-  },
-  episodeItem: {
-    backgroundColor: '#111827',
-    borderRadius: 12,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  episodeNumber: {
-    width: 64,
-    height: 64,
-    backgroundColor: '#374151',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  episodeNumberText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 18,
-  },
-  episodeInfo: {
-    flex: 1,
-  },
-  episodeTitle: {
-    color: '#fff',
-    fontWeight: '500',
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  episodeDuration: {
-    color: '#9ca3af',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  episodeSynopsis: {
-    color: '#d1d5db',
-    fontSize: 12,
-  },
-  episodePlayIcon: {
-    marginLeft: 12,
-  },
-});
-
-// Mock data for demonstration
-const mockMedia: MediaProps = {
-  title: "Exemplo de Filme",
-  sinopse: "Uma história épica sobre aventura e descoberta que vai cativar você do início ao fim.",
-  anoLancamento: 2024,
-  minAge: "16",
-  categoria: ["ACAO", "AVENTURA", "FICCAO_CIENTIFICA"],
-  type: "MOVIE",
-  duracaoMinutos: 120,
-  backdropURL1: "https://images.unsplash.com/photo-1489599038631-ba0046ceef47?w=1200&h=600&fit=crop",
-  embed1: "sample-embed-1",
-  embed2: "sample-embed-2"
-};
-
-export default function App() {
-  return (
-    <View style={{ flex: 1 }}>
-      <MediaScreen 
-        media={mockMedia} 
-        onBack={() => console.log('Back pressed')} 
-      />
-    </View>
-  );
-}

@@ -1,11 +1,8 @@
 // routes/Router.tsx
-import React from 'react';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
+import React, { useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, StyleSheet } from 'react-native';
 
 // Importar suas telas
 import SplashScreen from '~/screens/auth/SplashScreen';
@@ -17,15 +14,11 @@ import { MyListScreen } from '~/screens/MyListScreen';
 import UserProfileScreen from '~/screens/UserProfileScreen';
 import SearchScreen from '~/screens/SearchScreen';
 
-// Importar componentes de Header
-import { HomeHeader } from '~/routes/headers/HomeHeader';
-import { SearchHeader } from '~/routes/headers/SearchHeader';
-import { MediaHeader } from '~/routes/headers/MediaHeader';
-import { ProfileHeader } from '~/routes/headers/ProfileHeader';
-import { CustomHeader } from '~/routes/headers/CustomHeader';
-import { TabBar } from '~/routes/headers/TabBar';
+// Importar o TabBar customizado
+import { TabBar } from './headers/TabBar';
 
 import theme from '~/theme/theme';
+import type { MediaComplete } from '~/types/mediaTypes';
 
 // Tipos para navegação
 export type RootStackParamList = {
@@ -33,8 +26,8 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   MainTabs: undefined;
-  MediaDetail: { 
-    media: any; // MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO
+  MediaScreen: {
+    media: MediaComplete;
   };
   AdminDashboard: undefined;
 };
@@ -49,101 +42,43 @@ export type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Screen wrapper with specific headers
-const ScreenWithSpecificHeader: React.FC<{
-  component: React.ComponentType<any>;
-  headerType: 'home' | 'search' | 'profile' | 'default';
-}> = ({ component: Component, headerType }) => {
-  return ({ navigation, route }: any) => {
-    const renderHeader = () => {
-      switch (headerType) {
-        case 'home':
-          return <HomeHeader navigation={navigation} />;
-        case 'search':
-          return <SearchHeader navigation={navigation} />;
-        case 'profile':
-          return <ProfileHeader navigation={navigation} />;
-        default:
-          return <CustomHeader navigation={navigation} title="Minha Lista" />;
-      }
-    };
-
-    return (
-      <SafeAreaView style={styles.screenContainer} edges={['top']}>
-        {renderHeader()}
-        <Component navigation={navigation} route={route} />
-      </SafeAreaView>
-    );
-  };
-};
-
-
-// Media Screen wrapper with custom header
-const MediaScreenWithHeader: React.FC<any> = ({ navigation, route }) => {
-  const { media } = route.params;
-
-  return (
-    <SafeAreaView style={styles.mediaScreenContainer} edges={['top']}>
-      <MediaHeader navigation={navigation} />
-      <MediaScreen media={media} onBack={() => navigation.goBack()} />
-    </SafeAreaView>
-  );
-};
-
-
-// Main Tab Navigator
+// Main Tab Navigator otimizado
 const MainTabNavigator: React.FC = () => {
+  // Memorizar o componente TabBar para evitar re-criação
+  const renderTabBar = useCallback((props: any) => {
+    return (
+      <TabBar
+        currentRoute={props.state.routes[props.state.index].name}
+        onTabPress={(routeName) => {
+          const event = props.navigation.emit({
+            type: 'tabPress',
+            target: routeName,
+            canPreventDefault: true,
+          });
+          
+          if (!event.defaultPrevented) {
+            props.navigation.navigate(routeName as never);
+          }
+        }}
+      />
+    );
+  }, []);
+
   return (
     <Tab.Navigator
       initialRouteName="Home"
-      tabBar={(props) => <TabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        tabBarStyle: { display: 'none' },
+        lazy: true, // Carregamento lazy das tabs
+        unmountOnBlur: false, // Manter as tabs em memória
       }}
+      tabBar={renderTabBar}
     >
-      <Tab.Screen 
-        name="Home" 
-        component={ScreenWithSpecificHeader({ 
-          component: HomeScreen, 
-          headerType: 'home'
-        })} 
-        options={{
-          tabBarLabel: 'Início',
-        }}
-      />
-      
-      <Tab.Screen 
-        name="Search" 
-        component={ScreenWithSpecificHeader({ 
-          component: SearchScreen, 
-          headerType: 'search'
-        })} 
-        options={{
-          tabBarLabel: 'Buscar',
-        }}
-      />
-      
-      <Tab.Screen 
-        name="MyList" 
-        component={ScreenWithSpecificHeader({ 
-          component: MyListScreen, 
-          headerType: 'default'
-        })} 
-        options={{
-          tabBarLabel: 'Minha Lista',
-        }}
-      />
-      
-      <Tab.Screen 
-        name="Profile" 
-        component={ScreenWithSpecificHeader({ 
-          component: UserProfileScreen, 
-          headerType: 'profile'
-        })} 
-        options={{
-          tabBarLabel: 'Perfil',
-        }}
-      />
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="MyList" component={MyListScreen} />
+      <Tab.Screen name="Profile" component={UserProfileScreen} />
     </Tab.Navigator>
   );
 };
@@ -159,48 +94,42 @@ const Router: React.FC = () => {
           navigationBarColor: theme.colors.background,
           statusBarBackgroundColor: theme.colors.background,
           statusBarStyle: 'light',
+          animation: 'fade', // Animação mais leve
         }}
       >
-        {/* Splash Screen */}
-        <Stack.Screen 
-          name="Splash" 
+        <Stack.Screen
+          name="Splash"
           component={SplashScreen}
-          options={{ 
-            gestureEnabled: false,
-          }}
+          options={{ gestureEnabled: false }}
         />
-
-        {/* Public Routes */}
-        <Stack.Screen 
-          name="Login" 
+        
+        <Stack.Screen
+          name="Login"
           component={LoginScreen}
-          options={{ 
-            presentation: 'card',
-            gestureEnabled: false,
-          }}
-        />
-        <Stack.Screen 
-          name="Register" 
-          component={RegisterScreen}
-          options={{ 
-            presentation: 'card',
-            gestureEnabled: false,
-          }}
-        />
-
-        {/* Main App Routes - Bottom Tabs */}
-        <Stack.Screen 
-          name="MainTabs" 
-          component={MainTabNavigator}
           options={{
+            presentation: 'card',
             gestureEnabled: false,
           }}
         />
-
-        {/* Media Detail Routes */}
-        <Stack.Screen 
-          name="MediaDetail"
-          component={MediaScreenWithHeader}
+        
+        <Stack.Screen
+          name="Register"
+          component={RegisterScreen}
+          options={{
+            presentation: 'card',
+            gestureEnabled: false,
+          }}
+        />
+        
+        <Stack.Screen
+          name="MainTabs"
+          component={MainTabNavigator}
+          options={{ gestureEnabled: false }}
+        />
+        
+        <Stack.Screen
+          name="MediaScreen"
+          component={MediaScreen}
           options={{
             presentation: 'modal',
             headerShown: false,
@@ -212,17 +141,5 @@ const Router: React.FC = () => {
     </NavigationContainer>
   );
 };
-
-// Styles
-const styles = StyleSheet.create({
-  screenContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  mediaScreenContainer: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-});
 
 export default Router;

@@ -47,13 +47,6 @@ export class SearchService {
       searchParams.append("size", size.toString());
 
       if (theme.development) {
-        console.log("Realizando busca com parâmetros:", {
-        texto,
-        categoria,
-        tipo,
-        page,
-        size,
-      });
       }
       
 
@@ -62,11 +55,6 @@ export class SearchService {
       );
 
       if (theme.development) {
-        console.log("Busca realizada com sucesso:", {
-        totalElements: response.data.totalElements,
-        currentPage: response.data.currentPage,
-        totalPages: response.data.totalPages,
-      });
       }
 
 
@@ -74,7 +62,6 @@ export class SearchService {
       return response.data;
     } catch (error: any) {
       if (theme.development) {
-        console.error("Erro ao realizar busca:", error);
 
       }
       
@@ -117,7 +104,6 @@ export class SearchService {
       return response.content;
     } catch (error) {
       if (theme.development) {
-        console.error("Erro na busca rápida:", error);
       }
       return [];
       

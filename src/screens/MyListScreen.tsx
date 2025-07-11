@@ -285,7 +285,7 @@ export const MyListScreen: React.FC<MyListScreenProps> = ({ navigation, route })
         className="mb-6"
         contentContainerStyle={{ paddingHorizontal: 16 }}
       >
-        <View className="flex-row space-x-3">
+        <View className="flex-row h-14 space-x-3">
           {filters.map(({ type, label, icon: Icon, count }) => (
             <TouchableOpacity
               key={type}

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { ChevronLeft, ChevronRight, MoreHorizontal } from 'react-native-svg';
+import React, { useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { MovieCard } from '../components/MovieCard';
 import { 
   type PaginatedResponseDTO, 
@@ -10,7 +10,7 @@ import {
 } from '../types/mediaTypes';
 
 interface MediaGridProps {
-  data: PaginatedResponseDTO<MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO> | undefined;
+  data: PaginatedResponseDTO<MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO> | null;
   loading?: boolean;
   onPageChange: (page: number) => void;
   onMediaInfo: (media: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO) => void;
@@ -24,234 +24,182 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   onMediaInfo,
   gridSize = 'medium'
 }) => {
-  const [itemsPerPage, setItemsPerPage] = useState(20);
-  
-  useEffect(() => {
-    console.log({onMediaInfo})
-  }, [onMediaInfo]);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const getGridConfig = () => {
     switch (gridSize) {
       case 'small':
-        return {
-          numColumns: 3,
-          cardSize: 'P' as const,
-          spacing: 8
-        };
+        return { numColumns: 3, cardSize: 'P' as const };
       case 'large':
-        return {
-          numColumns: 2,
-          cardSize: 'G' as const,
-          spacing: 16
-        };
+        return { numColumns: 2, cardSize: 'G' as const };
       default:
-        return {
-          numColumns: 2,
-          cardSize: 'M' as const,
-          spacing: 12
-        };
+        return { numColumns: 2, cardSize: 'M' as const };
     }
   };
 
   const gridConfig = getGridConfig();
 
-  // Renderizar item do grid
-  const renderGridItem = ({ item, index }: { item: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO, index: number }) => {
-    return (
-      <View className="flex-1 items-center" style={{ marginBottom: gridConfig.spacing }}>
-        <MovieCard
-          media={item}
-          isLarge={gridConfig.cardSize === 'G'}
-          isTop10={false}
-          onInfo={onMediaInfo}
-          size={gridConfig.cardSize}
-        />
-      </View>
-    );
-  };
+  const renderGridItem = ({ item }: { item: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO }) => (
+    <View className="flex-1 items-center mb-4">
+      <MovieCard
+        media={item}
+        isLarge={gridConfig.cardSize === 'G'}
+        size={gridConfig.cardSize}
+        onPress={() => onMediaInfo(item)}
+      />
+    </View>
+  );
 
-  // Renderizar paginação
-  const renderPagination = () => {
-    if (!data || data.totalPages <= 1) return null;
-
-    const { currentPage, totalPages, hasNext, hasPrevious } = data;
-    
-    const getPageRange = () => {
-      const delta = 2;
-      const range = [];
-      const rangeWithDots = [];
-
-      range.push(0);
-
-      const start = Math.max(1, currentPage - delta);
-      const end = Math.min(totalPages - 2, currentPage + delta);
-
-      for (let i = start; i <= end; i++) {
-        range.push(i);
-      }
-
-      if (totalPages > 1) {
-        range.push(totalPages - 1);
-      }
-
-      const uniqueRange = [...new Set(range)].sort((a, b) => a - b);
-
-      for (let i = 0; i < uniqueRange.length; i++) {
-        if (i > 0 && uniqueRange[i] - uniqueRange[i - 1] > 1) {
-          rangeWithDots.push('...');
-        }
-        rangeWithDots.push(uniqueRange[i]);
-      }
-
-      return rangeWithDots;
-    };
-
-    const pageRange = getPageRange();
-
-    return (
-      <View className="items-center space-y-4 mt-6 px-4">
-        {/* Informações da paginação */}
-        <Text className="text-gray-400 text-sm text-center">
-          Página {currentPage + 1} de {totalPages} • {data.totalElements} resultados
-        </Text>
-
-        {/* Controles de paginação */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          className="flex-row"
-          contentContainerStyle={{ alignItems: 'center', paddingHorizontal: 16 }}
-        >
-          {/* Primeira página */}
-          <TouchableOpacity
-            onPress={() => onPageChange(0)}
-            disabled={currentPage === 0}
-            className={`px-3 py-2 mx-1 rounded-lg bg-gray-800 ${currentPage === 0 ? 'opacity-30' : ''}`}
-          >
-            <Text className="text-white text-sm">««</Text>
-          </TouchableOpacity>
-
-          {/* Página anterior */}
-          <TouchableOpacity
-            onPress={() => onPageChange(currentPage - 1)}
-            disabled={!hasPrevious}
-            className={`px-3 py-2 mx-1 rounded-lg bg-gray-800 flex-row items-center ${!hasPrevious ? 'opacity-30' : ''}`}
-          >
-            <ChevronLeft width={16} height={16} color="#fff" />
-            <Text className="text-white text-sm ml-1">Ant</Text>
-          </TouchableOpacity>
-
-          {/* Números das páginas */}
-          {pageRange.map((page, index) => (
-            <View key={index} className="mx-1">
-              {page === '...' ? (
-                <View className="px-2 py-2">
-                  <MoreHorizontal width={16} height={16} color="#666" />
-                </View>
-              ) : (
-                <TouchableOpacity
-                  onPress={() => onPageChange(page as number)}
-                  className={`px-3 py-2 rounded-lg ${
-                    page === currentPage ? 'bg-red-600' : 'bg-gray-800'
-                  }`}
-                >
-                  <Text 
-                    className={`text-sm ${
-                      page === currentPage ? 'text-white font-semibold' : 'text-gray-300'
-                    }`}
-                  >
-                    {(page as number) + 1}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          ))}
-
-          {/* Próxima página */}
-          <TouchableOpacity
-            onPress={() => onPageChange(currentPage + 1)}
-            disabled={!hasNext}
-            className={`px-3 py-2 mx-1 rounded-lg bg-gray-800 flex-row items-center ${!hasNext ? 'opacity-30' : ''}`}
-          >
-            <Text className="text-white text-sm mr-1">Próx</Text>
-            <ChevronRight width={16} height={16} color="#fff" />
-          </TouchableOpacity>
-
-          {/* Última página */}
-          <TouchableOpacity
-            onPress={() => onPageChange(totalPages - 1)}
-            disabled={currentPage === totalPages - 1}
-            className={`px-3 py-2 mx-1 rounded-lg bg-gray-800 ${currentPage === totalPages - 1 ? 'opacity-30' : ''}`}
-          >
-            <Text className="text-white text-sm">»»</Text>
-          </TouchableOpacity>
-        </ScrollView>
-      </View>
-    );
-  };
-
-  // Renderizar loading skeleton
   const renderLoadingSkeleton = () => (
     <FlatList
-      data={Array.from({ length: 20 })}
+      data={Array.from({ length: 10 })}
       numColumns={gridConfig.numColumns}
       renderItem={({ index }) => (
-        <View 
-          className="flex-1 mx-2 mb-4 bg-gray-800 rounded-lg animate-pulse"
-          style={{ 
-            height: gridConfig.cardSize === 'G' ? 270 : gridConfig.cardSize === 'P' ? 180 : 210,
-            aspectRatio: 2/3
-          }}
-        />
+        <View className="flex-1 mx-2 mb-4">
+          <View 
+            className="bg-gray-800 rounded-lg animate-pulse"
+            style={{ 
+              height: gridConfig.cardSize === 'G' ? 210 : gridConfig.cardSize === 'P' ? 150 : 180,
+              aspectRatio: 2/3
+            }}
+          />
+        </View>
       )}
       keyExtractor={(_, index) => `skeleton-${index}`}
       contentContainerStyle={{ padding: 16 }}
     />
   );
 
+  const loadMore = async () => {
+    if (data && data.hasNext && !loadingMore) {
+      setLoadingMore(true);
+      await onPageChange(data.currentPage + 1);
+      setLoadingMore(false);
+    }
+  };
+
+  const renderPagination = () => {
+    if (!data || data.totalPages <= 1) return null;
+
+    const { currentPage, totalPages } = data;
+    const pages = [];
+    
+    // Mostrar algumas páginas ao redor da atual
+    const start = Math.max(0, currentPage - 2);
+    const end = Math.min(totalPages - 1, currentPage + 2);
+    
+    for (let i = start; i <= end; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <View className="items-center py-6">
+        <Text className="text-gray-400 text-sm mb-4">
+          Página {currentPage + 1} de {totalPages} • {data.totalElements} resultados
+        </Text>
+        
+        <View className="flex-row items-center space-x-2">
+          {/* Primeira página */}
+          {currentPage > 0 && (
+            <TouchableOpacity
+              onPress={() => onPageChange(0)}
+              className="bg-gray-800 px-3 py-2 rounded-lg"
+            >
+              <Text className="text-white text-sm">1</Text>
+            </TouchableOpacity>
+          )}
+          
+          {/* Reticências */}
+          {start > 1 && (
+            <Text className="text-gray-500 px-2">...</Text>
+          )}
+          
+          {/* Páginas ao redor */}
+          {pages.map(page => (
+            <TouchableOpacity
+              key={page}
+              onPress={() => onPageChange(page)}
+              className={`px-3 py-2 rounded-lg ${
+                page === currentPage ? 'bg-red-600' : 'bg-gray-800'
+              }`}
+            >
+              <Text className={`text-sm ${
+                page === currentPage ? 'text-white font-semibold' : 'text-gray-300'
+              }`}>
+                {page + 1}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          
+          {/* Reticências */}
+          {end < totalPages - 2 && (
+            <Text className="text-gray-500 px-2">...</Text>
+          )}
+          
+          {/* Última página */}
+          {currentPage < totalPages - 1 && end < totalPages - 1 && (
+            <TouchableOpacity
+              onPress={() => onPageChange(totalPages - 1)}
+              className="bg-gray-800 px-3 py-2 rounded-lg"
+            >
+              <Text className="text-white text-sm">{totalPages}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <View className="flex-1 bg-black">
       {/* Header com contador */}
-      <View className="flex-row items-center justify-between px-4 py-2">
-        {data && (
+      {data && (
+        <View className="px-4 py-3 border-b border-gray-800">
           <Text className="text-gray-400 text-sm">
             {data.totalElements} {data.totalElements === 1 ? 'resultado' : 'resultados'}
           </Text>
-        )}
-      </View>
+        </View>
+      )}
 
       {/* Conteúdo */}
-      <View className="flex-1 min-h-96">
-        {loading ? (
-          renderLoadingSkeleton()
-        ) : data?.content.length ? (
-          <>
-            <FlatList
-              data={data.content}
-              numColumns={gridConfig.numColumns}
-              renderItem={renderGridItem}
-              keyExtractor={(item, index) => `${item.id}-${index}`}
-              contentContainerStyle={{ 
-                padding: 16,
-                paddingBottom: 100 // Espaço para paginação
-              }}
-              showsVerticalScrollIndicator={false}
-              ItemSeparatorComponent={() => <View style={{ height: gridConfig.spacing }} />}
-            />
-            {renderPagination()}
-          </>
-        ) : (
-          /* Estado vazio */
-          <View className="flex-1 items-center justify-center px-8">
-            <Text className="text-gray-400 text-lg text-center mb-2">
-              Nenhum resultado encontrado
-            </Text>
-            <Text className="text-gray-600 text-sm text-center">
-              Tente ajustar seus critérios de busca
-            </Text>
-          </View>
-        )}
-      </View>
+      {loading && !data ? (
+        renderLoadingSkeleton()
+      ) : data?.content.length ? (
+        <>
+          <FlatList
+            data={data.content}
+            numColumns={gridConfig.numColumns}
+            renderItem={renderGridItem}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={{ 
+              padding: 16,
+              paddingBottom: 100
+            }}
+            showsVerticalScrollIndicator={false}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.1}
+            ListFooterComponent={() => (
+              loadingMore ? (
+                <View className="py-4 flex-row justify-center">
+                  <ActivityIndicator size="small" color="#E50914" />
+                  <Text className="text-gray-400 ml-2">Carregando mais...</Text>
+                </View>
+              ) : null
+            )}
+          />
+          {renderPagination()}
+        </>
+      ) : (
+        <View className="flex-1 items-center justify-center px-8">
+          <Icon name="search-off" size={64} color="#374151" />
+          <Text className="text-gray-400 text-lg text-center mb-2">
+            Nenhum resultado encontrado
+          </Text>
+          <Text className="text-gray-600 text-sm text-center">
+            Tente ajustar seus critérios de busca
+          </Text>
+        </View>
+      )}
     </View>
   );
 };

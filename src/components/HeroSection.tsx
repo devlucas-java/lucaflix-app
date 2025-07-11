@@ -4,25 +4,24 @@ import {
   Text,
   TouchableOpacity,
   Image,
-  ScrollView,
   Dimensions,
   Alert,
   ImageBackground,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import type { MovieCompleteDTO, SerieCompleteDTO, AnimeCompleteDTO } from '../types/mediaTypes';
-import { isMovieComplete, isSerieComplete, Type } from '../types/mediaTypes';
-import { truncateText, toggleMyList, toggleLike, getMediaDuration } from '../utils/mediaService';
+import type { MediaComplete } from '../types/mediaTypes';
+import { isMovieComplete, isSerieComplete } from '../types/mediaTypes';
+import { toggleMyList, toggleLike } from '../utils/mediaService';
 import authService from '../service/authService';
-import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
 interface HeroSectionProps {
-  media: MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO;
+  media: MediaComplete;
   onInfo?: () => void;
   onPlay?: () => void;
+  loading?: boolean;
   useH1?: boolean;
 }
 
@@ -169,29 +168,18 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
     );
   }
 
-  const backdropURL = getBackdropURL();
-
   return (
     <View
       className="z-5 center m-6 flex rounded-lg border-2 border-gray-200 bg-black"
       style={{ height: height * 0.75 }}>
       {/* Gradiente overlay */}
-      {/* <LinearGradient
-        colors={[
-          '#000000', // topo 0%
-          'rgba(0,0,0,0.9)', // 15%
-          'rgba(0,0,0,0.6)', // 30%
-          'rgba(0,0,0,0.2)', // 45%
-          'transparent', // 55%
-          'rgba(0,0,0,0.2)', // 70%
-          'rgba(0,0,0,0.5)', // 85%
-          '#000000', // base 100%
-        ]}
-        locations={[0, 0.15, 0.3, 0.45, 0.55, 0.7, 0.85, 1]}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        className="absolute -top-8 bottom-0 left-0 right-0 z-10"
-      /> */}
+        <View
+  className="absolute inset-0 z-10 items-center justify-center"
+  style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+  pointerEvents="box-none" // permite toques passarem, se necessário
+>
+</View>
+
       <ImageBackground
         source={{ uri: media.posterURL1 || media.posterURL2 }}
         className="z-1 absolute h-full w-full"
@@ -200,7 +188,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
       {/* Trailer WebView */}
       {showVideo && youtubeURL && !videoError && (
-        <View className="z-15 flex aspect-video w-full overflow-hidden">
+        <View className="z-20 flex aspect-video w-full overflow-hidden">
           <WebView
             source={{ uri: youtubeURL }}
             className="flex-1 bg-transparent"
