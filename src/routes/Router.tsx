@@ -13,6 +13,7 @@ import { MediaScreen } from '~/screens/MediaScreen';
 import { MyListScreen } from '~/screens/MyListScreen';
 import UserProfileScreen from '~/screens/UserProfileScreen';
 import SearchScreen from '~/screens/SearchScreen';
+import { PlayerScreen } from '~/screens/PlayerScreen';
 
 // Importar o TabBar customizado
 import { TabBar } from './headers/TabBar';
@@ -28,6 +29,17 @@ export type RootStackParamList = {
   MainTabs: undefined;
   MediaScreen: {
     media: MediaComplete;
+  };
+  PlayerScreen: {
+    media: MediaComplete;
+    embedUrl: string;
+    episode?: {
+      id: number;
+      numeroEpisodio: number;
+      title: string;
+      sinopse: string;
+      duracaoMinutos: number;
+    };
   };
   AdminDashboard: undefined;
 };
@@ -135,6 +147,19 @@ const Router: React.FC = () => {
             headerShown: false,
             gestureEnabled: true,
             animation: 'slide_from_bottom',
+          }}
+        />
+
+        <Stack.Screen 
+          name="PlayerScreen" 
+          component={PlayerScreen}
+          options={{
+            presentation: 'fullScreenModal',
+            headerShown: false,
+            gestureEnabled: false, // Desabilitar gesture para voltar
+            orientation: 'landscape', // Forçar orientação paisagem
+            statusBarHidden: true,
+            animation: 'fade',
           }}
         />
       </Stack.Navigator>

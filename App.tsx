@@ -1,7 +1,8 @@
 // App.tsx
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Router from './src/routes/Router';
 import './global.css';
 
@@ -23,18 +24,13 @@ const theme = {
 
 const App: React.FC = () => {
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" backgroundColor={theme.colors.background} />
-      <Router />
-    </View>
+    <GestureHandlerRootView className="flex-1">
+      <View className="flex-1 bg-black">
+        <StatusBar style="light" backgroundColor={theme.colors.background} />
+        <Router />
+      </View>
+    </GestureHandlerRootView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-});
 
 export default App;

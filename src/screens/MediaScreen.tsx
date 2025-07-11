@@ -11,16 +11,20 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
 import {
   MediaComplete,
   isMovieComplete,
   isSerieComplete,
   isAnimeComplete,
   CATEGORIA_LABELS,
+  EpisodioDTO,
 } from '../types/mediaTypes';
+import { RootStackParamList } from '../routes/Router';
 import authService from '../service/authService';
 
 const { width, height } = Dimensions.get('window');
@@ -35,6 +39,8 @@ interface MediaScreenProps {
 interface RouteParams {
   media: MediaComplete;
 }
+
+type MediaScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'MediaScreen'>;
 
 // Função para verificar se URL é válida
 const isValidUrl = (url: string | null | undefined): boolean => {
@@ -79,7 +85,7 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
   onMediaSelect,
   onMediaChange,
 }) => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<MediaScreenNavigationProp>();
   const route = useRoute<{ params: RouteParams }>();
   
   // Usar mídia dos props ou da rota
@@ -124,11 +130,26 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
     setImageErrors(prev => new Set([...prev, imageUrl]));
   };
 
-  const handlePlayVideo = (embedUrl: string) => {
-    if (embedUrl && embedUrl.trim() !== '') {
-      const playerUrl = `https://player.exemplo.com/${embedUrl}`;
-      Linking.openURL(playerUrl);
+  // Função para navegar para o player
+  const navigateToPlayer = (embedUrl: string, episode?: EpisodioDTO) => {
+    if (!embedUrl || embedUrl.trim() === '') {
+      Alert.alert('Erro', 'Link do vídeo não disponível');
+      return;
     }
+
+    const episodeData = episode ? {
+      id: episode.id,
+      numeroEpisodio: episode.numeroEpisodio,
+      title: episode.title,
+      sinopse: episode.sinopse,
+      duracaoMinutos: episode.duracaoMinutos,
+    } : undefined;
+
+    navigation.navigate('PlayerScreen', {
+      media,
+      embedUrl,
+      episode: episodeData,
+    });
   };
 
   const handlePlayTrailer = () => {
@@ -180,6 +201,8 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
         sinopse: movie.sinopse,
         duracaoMinutos: Math.floor((movie.duracaoMinutos || 120) / 2),
         embed1: movie.embed1,
+        embed2: '',
+        dataCadastro: new Date(),
       });
     }
 
@@ -191,10 +214,34 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
         sinopse: movie.sinopse,
         duracaoMinutos: Math.ceil((movie.duracaoMinutos || 120) / 2),
         embed1: movie.embed2,
+        embed2: '',
+        dataCadastro: new Date(),
       });
     }
 
     return episodes;
+  };
+
+  const handleMainPlayButton = () => {
+    if (isMovie) {
+      // Para filmes, usar o primeiro embed disponível
+      const embedUrl = media.embed1 || media.embed2;
+      if (embedUrl) {
+        navigateToPlayer(embedUrl);
+      } else {
+        Alert.alert('Erro', 'Nenhum link de vídeo disponível');
+      }
+    } else if ((isSerie || isAnime) && media.temporadas && media.temporadas.length > 0) {
+      // Para séries/animes, usar o primeiro episódio da primeira temporada
+      const firstEpisode = media.temporadas[0]?.episodios?.[0];
+      if (firstEpisode && firstEpisode.embed1) {
+        navigateToPlayer(firstEpisode.embed1, firstEpisode);
+      } else {
+        Alert.alert('Erro', 'Primeiro episódio não disponível');
+      }
+    } else {
+      Alert.alert('Erro', 'Conteúdo não disponível para reprodução');
+    }
   };
 
   const backdropUrl = getValidBackdrop(media);
@@ -291,16 +338,7 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
             <View className="flex-row gap-3">
               {/* Play Button */}
               <TouchableOpacity
-                onPress={() => {
-                  if (isMovie) {
-                    handlePlayVideo(media.embed1 || '');
-                  } else if (media.temporadas && media.temporadas.length > 0) {
-                    const firstEpisode = media.temporadas[0]?.episodios?.[0];
-                    if (firstEpisode) {
-                      handlePlayVideo(firstEpisode.embed1);
-                    }
-                  }
-                }}
+                onPress={handleMainPlayButton}
                 className="bg-white rounded-md flex-row items-center justify-center py-3 px-6 flex-1"
               >
                 <Icon name="play-arrow" size={20} color="#000" />
@@ -379,85 +417,107 @@ export const MediaScreen: React.FC<MediaScreenProps> = ({
             </View>
           </View>
 
+          {/* Season Selector */}
+          {((isSerie || isAnime) && media.temporadas && media.temporadas.length > 1) && (
+            <View className="mb-4">
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View className="flex-row gap-2 px-1">
+                  {media.temporadas.map((temporada) => (
+                    <TouchableOpacity
+                      key={temporada.id}
+                      onPress={() => setSelectedSeason(temporada.numeroTemporada)}
+                      className={`px-4 py-2 rounded-full border ${
+                        selectedSeason === temporada.numeroTemporada
+                          ? 'bg-white border-white'
+                          : 'bg-transparent border-gray-600'
+                      }`}
+                    >
+                      <Text
+                        className={`text-sm font-medium ${
+                          selectedSeason === temporada.numeroTemporada
+                            ? 'text-black'
+                            : 'text-white'
+                        }`}
+                      >
+                        Temporada {temporada.numeroTemporada}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          )}
+
           {/* Episodes Section */}
           <View className="mb-6">
             <View className="flex-row justify-between items-center mb-4">
               <Text className="text-white text-xl font-bold">
                 {isMovie ? 'Partes disponíveis' : 'Episódios'}
               </Text>
-              
-              {((isSerie || isAnime) && media.temporadas && media.temporadas.length > 1) && (
-                <View className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2">
-                  <Text className="text-white text-sm">
-                    Temporada {selectedSeason}
-                  </Text>
-                </View>
-              )}
             </View>
-
 
             {/* Episodes List */}
             <View className="gap-2">
-  {isMovie && getMovieEpisodes(media).map((episode) => (
-    <TouchableOpacity
-      key={episode.id}
-      onPress={() => handlePlayVideo(episode.embed1)}
-      className="bg-gray-900 rounded-xl p-3 flex-row items-center"
-    >
-      <View className="w-16 h-16 bg-gray-700 rounded-lg justify-center items-center mr-3">
-        <Text className="text-white font-bold text-lg">
-          {episode.numeroEpisodio}
-        </Text>
-      </View>
-      
-      <View className="flex-1">
-        <Text className="text-white font-medium text-base mb-1">
-          {episode.title}
-        </Text>
-        <Text className="text-gray-400 text-sm">
-          {formatDuration(episode.duracaoMinutos)}
-        </Text>
-      </View>
-      
-      <View className="ml-3">
-        <Icon name="play" size={20} color="#fff" />
-      </View>
-    </TouchableOpacity>
-  ))}
+              {isMovie && getMovieEpisodes(media).map((episode) => (
+                <TouchableOpacity
+                  key={episode.id}
+                  onPress={() => navigateToPlayer(episode.embed1, episode)}
+                  className="bg-gray-900 rounded-xl p-3 flex-row items-center"
+                >
+                  <View className="w-16 h-16 bg-gray-700 rounded-lg justify-center items-center mr-3">
+                    <Text className="text-white font-bold text-lg">
+                      {episode.numeroEpisodio}
+                    </Text>
+                  </View>
+                  
+                  <View className="flex-1">
+                    <Text className="text-white font-medium text-base mb-1">
+                      {episode.title}
+                    </Text>
+                    <Text className="text-gray-400 text-sm">
+                      {formatDuration(episode.duracaoMinutos)}
+                    </Text>
+                  </View>
+                  
+                  <View className="ml-3">
+                    <Icon name="play-circle-filled" size={24} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              ))}
 
-  {((isSerie || isAnime) && media.temporadas) &&
-    media.temporadas
-      .find(t => t.numeroTemporada === selectedSeason)
-      ?.episodios?.map((episode) => (
-        <TouchableOpacity
-          key={episode.id}
-          onPress={() => handlePlayVideo(episode.embed1)}
-          className="bg-gray-900 rounded-xl p-3 flex-row items-center"
-        >
-          <View className="w-16 h-16 bg-gray-700 rounded-lg justify-center items-center mr-3">
-            <Text className="text-white font-bold text-lg">
-              {episode.numeroEpisodio}
-            </Text>
-          </View>
-          
-          <View className="flex-1">
-            <Text className="text-white font-medium text-base mb-1">
-              {episode.title}
-            </Text>
-            <Text className="text-gray-400 text-sm mb-1">
-              {formatDuration(episode.duracaoMinutos)}
-            </Text>
-            <Text className="text-gray-300 text-xs" numberOfLines={2}>
-              {episode.sinopse}
-            </Text>
-          </View>
-          
-          <View className="ml-3">
-            <Icon name="play" size={20} color="#fff" />
-          </View>
-        </TouchableOpacity>
-      ))}
-</View>
+              {((isSerie || isAnime) && media.temporadas) &&
+                media.temporadas
+                  .find(t => t.numeroTemporada === selectedSeason)
+                  ?.episodios?.map((episode) => (
+                    <TouchableOpacity
+                      key={episode.id}
+                      onPress={() => navigateToPlayer(episode.embed1, episode)}
+                      className="bg-gray-900 rounded-xl p-3 flex-row items-center"
+                    >
+                      <View className="w-16 h-16 bg-gray-700 rounded-lg justify-center items-center mr-3">
+                        <Text className="text-white font-bold text-lg">
+                          {episode.numeroEpisodio}
+                        </Text>
+                      </View>
+                      
+                      <View className="flex-1">
+                        <Text className="text-white font-medium text-base mb-1">
+                          {episode.title}
+                        </Text>
+                        <Text className="text-gray-400 text-sm mb-1">
+                          {formatDuration(episode.duracaoMinutos)}
+                        </Text>
+                        <Text className="text-gray-300 text-xs" numberOfLines={2}>
+                          {episode.sinopse}
+                        </Text>
+                      </View>
+                      
+                      <View className="ml-3">
+                        <Icon name="play-circle-filled" size={24} color="#fff" />
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+            </View>
           </View>
         </View>
       </ScrollView>
