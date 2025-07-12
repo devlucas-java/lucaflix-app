@@ -39,7 +39,7 @@ export const HomeHeader: React.FC<HomeHeaderProps> = ({ navigation, scrollY }) =
   };
 
   return (
-    <SafeAreaView className="absolute top-3 left-0 right-0 z-50 h-32">
+    <SafeAreaView className="absolute top-6 left-0 right-0 z-50 h-32">
       <StatusBar 
         barStyle="light-content"
         backgroundColor="transparent"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { MovieCard } from '../components/MovieCard';
 import { 
@@ -17,6 +17,8 @@ interface MediaGridProps {
   gridSize?: 'small' | 'medium' | 'large';
 }
 
+const { width: screenWidth } = Dimensions.get('window');
+
 export const MediaGrid: React.FC<MediaGridProps> = ({
   data,
   loading = false,
@@ -27,20 +29,42 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   const [loadingMore, setLoadingMore] = useState(false);
 
   const getGridConfig = () => {
+    const padding = 32; // 16px padding em cada lado
+    const spacing = 16; // espaçamento entre itens
+    
     switch (gridSize) {
       case 'small':
-        return { numColumns: 3, cardSize: 'P' as const };
+        return { 
+          numColumns: 3, 
+          cardSize: 'P' as const,
+          itemWidth: (screenWidth - padding - (spacing * 2)) / 3
+        };
       case 'large':
-        return { numColumns: 2, cardSize: 'G' as const };
+        return { 
+          numColumns: 2, 
+          cardSize: 'G' as const,
+          itemWidth: (screenWidth - padding - spacing) / 2
+        };
       default:
-        return { numColumns: 2, cardSize: 'M' as const };
+        return { 
+          numColumns: 3, 
+          cardSize: 'M' as const,
+          itemWidth: (screenWidth - padding - (spacing * 2)) / 3
+        };
     }
   };
 
   const gridConfig = getGridConfig();
 
-  const renderGridItem = ({ item }: { item: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO }) => (
-    <View className="flex-1 items-center mb-4">
+  const renderGridItem = ({ item, index }: { item: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO, index: number }) => (
+    <View 
+      className="mb-4" 
+      style={{ 
+        width: gridConfig.itemWidth,
+        marginLeft: index % gridConfig.numColumns === 0 ? 0 : 8,
+        marginRight: index % gridConfig.numColumns === gridConfig.numColumns - 1 ? 0 : 8,
+      }}
+    >
       <MovieCard
         media={item}
         isLarge={gridConfig.cardSize === 'G'}
@@ -52,13 +76,21 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
 
   const renderLoadingSkeleton = () => (
     <FlatList
-      data={Array.from({ length: 10 })}
+      data={Array.from({ length: 12 })}
       numColumns={gridConfig.numColumns}
       renderItem={({ index }) => (
-        <View className="flex-1 mx-2 mb-4">
+        <View 
+          className="mb-4"
+          style={{ 
+            width: gridConfig.itemWidth,
+            marginLeft: index % gridConfig.numColumns === 0 ? 0 : 8,
+            marginRight: index % gridConfig.numColumns === gridConfig.numColumns - 1 ? 0 : 8,
+          }}
+        >
           <View 
             className="bg-gray-800 rounded-lg animate-pulse"
             style={{ 
+              width: '100%',
               height: gridConfig.cardSize === 'G' ? 210 : gridConfig.cardSize === 'P' ? 150 : 180,
               aspectRatio: 2/3
             }}
@@ -66,17 +98,10 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
         </View>
       )}
       keyExtractor={(_, index) => `skeleton-${index}`}
-      contentContainerStyle={{ padding: 16 }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16 }}
+      scrollEnabled={false}
     />
   );
-
-  const loadMore = async () => {
-    if (data && data.hasNext && !loadingMore) {
-      setLoadingMore(true);
-      await onPageChange(data.currentPage + 1);
-      setLoadingMore(false);
-    }
-  };
 
   const renderPagination = () => {
     if (!data || data.totalPages <= 1) return null;
@@ -84,42 +109,52 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
     const { currentPage, totalPages } = data;
     const pages = [];
     
-    // Mostrar algumas páginas ao redor da atual
-    const start = Math.max(0, currentPage - 2);
-    const end = Math.min(totalPages - 1, currentPage + 2);
+    // Lógica de paginação inteligente
+    let startPage = Math.max(0, currentPage - 2);
+    let endPage = Math.min(totalPages - 1, currentPage + 2);
     
-    for (let i = start; i <= end; i++) {
+    // Ajustar para mostrar sempre 5 páginas quando possível
+    if (endPage - startPage < 4) {
+      if (startPage === 0) {
+        endPage = Math.min(totalPages - 1, startPage + 4);
+      } else if (endPage === totalPages - 1) {
+        startPage = Math.max(0, endPage - 4);
+      }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
       pages.push(i);
     }
 
     return (
-      <View className="items-center py-6">
+      <View className="items-center py-6 px-4">
         <Text className="text-gray-400 text-sm mb-4">
           Página {currentPage + 1} de {totalPages} • {data.totalElements} resultados
         </Text>
         
-        <View className="flex-row items-center space-x-2">
-          {/* Primeira página */}
+        <View className="flex-row items-center justify-center flex-wrap">
+          {/* Botão Primeira Página */}
           {currentPage > 0 && (
-            <TouchableOpacity
-              onPress={() => onPageChange(0)}
-              className="bg-gray-800 px-3 py-2 rounded-lg"
-            >
-              <Text className="text-white text-sm">1</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                onPress={() => onPageChange(0)}
+                className="bg-gray-800 px-3 py-2 rounded-lg mx-1 mb-2"
+              >
+                <Text className="text-white text-sm">1</Text>
+              </TouchableOpacity>
+              
+              {startPage > 1 && (
+                <Text className="text-gray-500 px-2 mb-2">...</Text>
+              )}
+            </>
           )}
           
-          {/* Reticências */}
-          {start > 1 && (
-            <Text className="text-gray-500 px-2">...</Text>
-          )}
-          
-          {/* Páginas ao redor */}
+          {/* Páginas ao redor da atual */}
           {pages.map(page => (
             <TouchableOpacity
               key={page}
               onPress={() => onPageChange(page)}
-              className={`px-3 py-2 rounded-lg ${
+              className={`px-3 py-2 rounded-lg mx-1 mb-2 ${
                 page === currentPage ? 'bg-red-600' : 'bg-gray-800'
               }`}
             >
@@ -131,20 +166,46 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
             </TouchableOpacity>
           ))}
           
-          {/* Reticências */}
-          {end < totalPages - 2 && (
-            <Text className="text-gray-500 px-2">...</Text>
+          {/* Botão Última Página */}
+          {currentPage < totalPages - 1 && endPage < totalPages - 1 && (
+            <>
+              {endPage < totalPages - 2 && (
+                <Text className="text-gray-500 px-2 mb-2">...</Text>
+              )}
+              
+              <TouchableOpacity
+                onPress={() => onPageChange(totalPages - 1)}
+                className="bg-gray-800 px-3 py-2 rounded-lg mx-1 mb-2"
+              >
+                <Text className="text-white text-sm">{totalPages}</Text>
+              </TouchableOpacity>
+            </>
           )}
+        </View>
+        
+        {/* Botões de Navegação */}
+        <View className="flex-row justify-center mt-4 space-x-4">
+          <TouchableOpacity
+            onPress={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 0}
+            className={`flex-row items-center px-4 py-2 rounded-lg ${
+              currentPage === 0 ? 'bg-gray-800 opacity-50' : 'bg-gray-700'
+            }`}
+          >
+            <Icon name="chevron-left" size={20} color="white" />
+            <Text className="text-white ml-1">Anterior</Text>
+          </TouchableOpacity>
           
-          {/* Última página */}
-          {currentPage < totalPages - 1 && end < totalPages - 1 && (
-            <TouchableOpacity
-              onPress={() => onPageChange(totalPages - 1)}
-              className="bg-gray-800 px-3 py-2 rounded-lg"
-            >
-              <Text className="text-white text-sm">{totalPages}</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            onPress={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages - 1}
+            className={`flex-row items-center px-4 py-2 rounded-lg ${
+              currentPage === totalPages - 1 ? 'bg-gray-800 opacity-50' : 'bg-gray-700'
+            }`}
+          >
+            <Text className="text-white mr-1">Próximo</Text>
+            <Icon name="chevron-right" size={20} color="white" />
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -157,6 +218,11 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
         <View className="px-4 py-3 border-b border-gray-800">
           <Text className="text-gray-400 text-sm">
             {data.totalElements} {data.totalElements === 1 ? 'resultado' : 'resultados'}
+            {data.totalPages > 1 && (
+              <Text className="text-gray-500">
+                {' '}• Página {data.currentPage + 1} de {data.totalPages}
+              </Text>
+            )}
           </Text>
         </View>
       )}
@@ -172,22 +238,14 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
             renderItem={renderGridItem}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={{ 
-              padding: 16,
-              paddingBottom: 100
+              paddingHorizontal: 16,
+              paddingTop: 16,
+              paddingBottom: 20
             }}
             showsVerticalScrollIndicator={false}
-            onEndReached={loadMore}
-            onEndReachedThreshold={0.1}
-            ListFooterComponent={() => (
-              loadingMore ? (
-                <View className="py-4 flex-row justify-center">
-                  <ActivityIndicator size="small" color="#E50914" />
-                  <Text className="text-gray-400 ml-2">Carregando mais...</Text>
-                </View>
-              ) : null
-            )}
+            ListFooterComponent={renderPagination}
+            key={gridConfig.numColumns} // Força re-render quando numColumns muda
           />
-          {renderPagination()}
         </>
       ) : (
         <View className="flex-1 items-center justify-center px-8">

@@ -1,390 +1,342 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StatusBar,
   TouchableOpacity,
-  TouchableWithoutFeedback,
-  Animated,
-  BackHandler,
+  StatusBar,
   Alert,
+  BackHandler,
+  Dimensions,
 } from 'react-native';
-import Slider from '@react-native-community/slider';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { WebView } from 'react-native-webview';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
-import * as ScreenOrientation from 'expo-screen-orientation';
-import { PanGestureHandler } from 'react-native-gesture-handler';
+import MiniBrowserPlayer from './MiniBrowserPlayer';
+import { RootStackParamList } from '../routes/Router';
 
-// Configuração base do embed
-const EMBED_BASE_URL = 'https://embedder.net';
+const { width, height } = Dimensions.get('window');
 
-interface PlayerScreenProps {
+type PlayerScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'PlayerScreen'>;
+
+interface RouteParams {
   media: any;
   embedUrl: string;
-  episode?: any;
+  episode?: {
+    id: number;
+    numeroEpisodio: number;
+    title: string;
+    sinopse: string;
+    duracaoMinutos: number;
+    embed1?: string;
+    embed2?: string;
+  };
+  allEpisodes?: Array<{
+    id: number;
+    numeroEpisodio: number;
+    title: string;
+    sinopse: string;
+    duracaoMinutos: number;
+    embed1?: string;
+    embed2?: string;
+  }>;
 }
 
-export const PlayerScreen: React.FC<PlayerScreenProps> = () => {
-  const navigation = useNavigation();
-  const route = useRoute<{ params: PlayerScreenProps }>();
-  const { media, embedUrl, episode } = route.params;
+const removeFirstSlash = (url: string): string => {
+  if (url.startsWith('/')) {
+    return url.slice(1);
+  }
+  return url;
+};
 
-  // Estados principais
-  const [isControlsVisible, setIsControlsVisible] = useState(true);
-  const [isLocked, setIsLocked] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(episode?.duracaoMinutos ? episode.duracaoMinutos * 60 : 7200);
-  const [isBuffering, setIsBuffering] = useState(false);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
-  const [selectedQuality, setSelectedQuality] = useState('HD');
-  const [showSpeedOptions, setShowSpeedOptions] = useState(false);
-  const [showQualityOptions, setShowQualityOptions] = useState(false);
+// Função para identificar o tipo de URL e completar se necessário
+const identifyAndCompleteUrl = (url) => {
+  if (!url) return { url, type: 'unknown' };
 
-  // Animações
-  const controlsOpacity = useRef(new Animated.Value(1)).current;
-  const controlsTimeout = useRef<NodeJS.Timeout>();
-  const progressInterval = useRef<NodeJS.Timeout>();
+  // Se já tem protocolo (Rede Canais já vem completo)
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (url.includes('server.php') || url.includes('redecaneais')) {
+      return { url, type: 'rede_canais' };
+    } else if (url.includes('embedder.net')) {
+      return { url, type: 'embedder' };
+    } else if (url.includes('superflixapi')) {
+      return { url, type: 'superflix' };
+    }
+    return { url, type: 'unknown' };
+  }
 
-  // Configuração inicial
+  // URLs parciais que precisam ser completadas
+
+  // Identificar Embedder: sempre tem /e/
+  if (url.includes('/e/') || url.startsWith('e/')) {
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    const completeUrl = `https://embedder.net${cleanPath}`;
+    return { url: completeUrl, type: 'embedder' };
+  }
+
+  // Identificar Superflix: sempre tem /filme/ ou /serie/
+  if (
+    url.includes('/filme/') ||
+    url.includes('/serie/') ||
+    url.startsWith('filme/') ||
+    url.startsWith('serie/')
+  ) {
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    const completeUrl = `https://superflixapi.my${cleanPath}`;
+    return { url: completeUrl, type: 'superflix' };
+  }
+
+  // Identificar Rede Canais: sempre tem server.php (mas não deveria chegar aqui pois já vem completo)
+  if (url.includes('server.php')) {
+    const fixedUrl = removeFirstSlash(url);
+    return { url: fixedUrl, type: 'rede_canais' };
+  }
+
+  // Fallback: se começa com /*/, tenta embedder
+ if (/^\/.\//.test(url)) {
+  const completeUrl = `https://embedder.net${url}`;
+  return { url: completeUrl, type: 'embedder' };
+}
+
+
+  // Fallback final
+  return { url: `https://embedder.net/${url}`, type: 'embedder' };
+};
+
+// Função para completar URL se necessário (wrapper para compatibilidade)
+const completeUrl = (url) => {
+  const result = identifyAndCompleteUrl(url);
+  return result.url;
+};
+
+export const PlayerScreen = () => {
+  const navigation = useNavigation<PlayerScreenNavigationProp>();
+  const route = useRoute<{ params: RouteParams }>();
+
+  const { media, embedUrl, episode, allEpisodes } = route.params;
+
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [selectedServer, setSelectedServer] = useState(1);
+  const [currentEmbedUrl, setCurrentEmbedUrl] = useState(completeUrl(embedUrl));
+
   useEffect(() => {
-    setupPlayer();
     const backHandler = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
-    
-    return () => {
-      cleanupPlayer();
-      backHandler.remove();
-    };
+    return () => backHandler.remove();
   }, []);
 
-  // Timer de progresso
   useEffect(() => {
-    if (isPlaying) {
-      progressInterval.current = setInterval(() => {
-        setCurrentTime(prev => prev >= duration ? duration : prev + 1);
-      }, 1000);
-    } else if (progressInterval.current) {
-      clearInterval(progressInterval.current);
-    }
-    
-    return () => {
-      if (progressInterval.current) clearInterval(progressInterval.current);
-    };
-  }, [isPlaying, duration]);
+    const urlInfo = identifyAndCompleteUrl(embedUrl);
+    setCurrentEmbedUrl(urlInfo.url);
 
-  const setupPlayer = async () => {
-    try {
-      activateKeepAwake();
-      await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-      StatusBar.setHidden(true);
-      startControlsTimer();
-    } catch (error) {
-      console.error('Erro ao configurar player:', error);
-    }
-  };
-
-  const cleanupPlayer = async () => {
-    try {
-      deactivateKeepAwake();
-      await ScreenOrientation.unlockAsync();
-      StatusBar.setHidden(false);
-      if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
-      if (progressInterval.current) clearInterval(progressInterval.current);
-    } catch (error) {
-      console.error('Erro ao limpar player:', error);
-    }
-  };
-
-  const startControlsTimer = () => {
-    if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
-    controlsTimeout.current = setTimeout(() => {
-      if (!isLocked && isPlaying) hideControls();
-    }, 4000);
-  };
-
-  const hideControls = () => {
-    Animated.timing(controlsOpacity, {
-      toValue: 0,
-      duration: 300,
-      useNativeDriver: true,
-    }).start(() => setIsControlsVisible(false));
-  };
-
-  const showControls = () => {
-    setIsControlsVisible(true);
-    Animated.timing(controlsOpacity, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-    startControlsTimer();
-  };
-
-  const handleScreenTouch = () => {
-    if (isLocked) return;
-    isControlsVisible ? hideControls() : showControls();
-  };
-
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-    startControlsTimer();
-  };
-
-  const handleSeekTo = (time: number) => {
-    setCurrentTime(time);
-    startControlsTimer();
-  };
+    // Debug: mostrar informações da URL
+    console.log('PlayerScreen - URL Original:', embedUrl);
+    console.log('PlayerScreen - URL Completa:', urlInfo.url);
+    console.log('PlayerScreen - Tipo:', urlInfo.type);
+  }, [embedUrl]);
 
   const handleBackPress = () => {
-    if (isLocked) return true;
-    Alert.alert('Sair do Player', 'Tem certeza que deseja sair?', [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Sair', onPress: () => navigation.goBack() },
-    ]);
-    return true;
+    return false;
   };
 
-  const handleLockPress = () => {
-    setIsLocked(!isLocked);
-    !isLocked ? hideControls() : showControls();
+  const handleClose = () => {
+    navigation.goBack();
   };
 
-  // Utilitários
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const handleServerChange = (serverNumber) => {
+    setSelectedServer(serverNumber);
+    setShowServerModal(false);
 
-  const getMediaTitle = () => {
-    return episode ? `${media.title} - T1:E${episode.numeroEpisodio} ${episode.title}` : media.title;
-  };
-
-  const getMediaType = () => {
-    if (media.type === 'movie') return 'FILME';
-    if (media.type === 'serie') return 'SÉRIE';
-    if (media.type === 'anime') return 'ANIME';
-    return 'MÍDIA';
-  };
-
-  // Construir URL do embed
-  const getPlayerUrl = () => {
-    // Se embedUrl já contém o domínio completo, usa direto
-    if (embedUrl.includes('http')) {
-      return embedUrl;
+    let newUrl = embedUrl;
+    if (episode) {
+      newUrl = serverNumber === 1 ? episode.embed1 : episode.embed2;
+    } else if (media) {
+      newUrl = serverNumber === 1 ? media.embed1 : media.embed2;
     }
-    // Senão, combina com o domínio base
-    return `${EMBED_BASE_URL}${embedUrl}`;
+
+    if (newUrl && newUrl.trim() !== '') {
+      const urlInfo = identifyAndCompleteUrl(newUrl);
+      setCurrentEmbedUrl(urlInfo.url);
+
+      // Debug: mostrar informações da troca de servidor
+      console.log('Trocando servidor - URL Original:', newUrl);
+      console.log('Trocando servidor - URL Completa:', urlInfo.url);
+      console.log('Trocando servidor - Tipo:', urlInfo.type);
+
+      navigation.replace('PlayerScreen', {
+        media,
+        embedUrl: newUrl,
+        episode,
+        allEpisodes,
+      });
+    } else {
+      Alert.alert('Erro', 'Servidor não disponível');
+    }
   };
 
-  const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-  const qualityOptions = ['Auto', 'HD', 'Full HD', '4K'];
+  const hasMultipleServers = () => {
+    if (episode) {
+      return (
+        episode.embed1 &&
+        episode.embed2 &&
+        episode.embed1.trim() !== '' &&
+        episode.embed2.trim() !== ''
+      );
+    } else if (media) {
+      return (
+        media.embed1 && media.embed2 && media.embed1.trim() !== '' && media.embed2.trim() !== ''
+      );
+    }
+    return false;
+  };
+
+  // Função para navegar para próximo episódio
+  const handleNextEpisode = () => {
+    if (!episode || !allEpisodes) return;
+
+    const currentIndex = allEpisodes.findIndex((ep) => ep.id === episode.id);
+    const nextEpisode = allEpisodes[currentIndex + 1];
+
+    if (nextEpisode) {
+      const nextUrl = nextEpisode.embed1 || nextEpisode.embed2;
+      if (nextUrl) {
+        navigation.replace('PlayerScreen', {
+          media,
+          embedUrl: nextUrl,
+          episode: nextEpisode,
+          allEpisodes,
+        });
+      }
+    }
+  };
+
+  // Função para navegar para episódio anterior
+  const handlePreviousEpisode = () => {
+    if (!episode || !allEpisodes) return;
+
+    const currentIndex = allEpisodes.findIndex((ep) => ep.id === episode.id);
+    const previousEpisode = allEpisodes[currentIndex - 1];
+
+    if (previousEpisode) {
+      const previousUrl = previousEpisode.embed1 || previousEpisode.embed2;
+      if (previousUrl) {
+        navigation.replace('PlayerScreen', {
+          media,
+          embedUrl: previousUrl,
+          episode: previousEpisode,
+          allEpisodes,
+        });
+      }
+    }
+  };
+
+  // Verificar se há próximo/anterior episódio
+  const hasNextEpisode = () => {
+    if (!episode || !allEpisodes) return false;
+    const currentIndex = allEpisodes.findIndex((ep) => ep.id === episode.id);
+    return currentIndex < allEpisodes.length - 1;
+  };
+
+  const hasPreviousEpisode = () => {
+    if (!episode || !allEpisodes) return false;
+    const currentIndex = allEpisodes.findIndex((ep) => ep.id === episode.id);
+    return currentIndex > 0;
+  };
+
+  // Verificar se a URL é válida
+  if (!embedUrl || embedUrl.trim() === '') {
+    return (
+      <View className="flex-1 items-center justify-center bg-black px-5">
+        <StatusBar barStyle="light-content" backgroundColor="#000" hidden />
+        <Icon name="error-outline" size={60} color="#ff6b6b" />
+        <Text className="mb-2 mt-4 text-xl font-bold text-white">Link não disponível</Text>
+        <Text className="mb-8 text-center text-sm text-gray-300">
+          O link para este {episode ? 'episódio' : 'filme'} não está disponível.
+        </Text>
+        <TouchableOpacity
+          className="flex-row items-center rounded-lg bg-red-500 px-5 py-3"
+          onPress={handleClose}>
+          <Icon name="arrow-back" size={20} color="#fff" />
+          <Text className="ml-2 text-sm font-bold text-white">Voltar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-black">
-      <StatusBar hidden />
-      
-      {/* WebView Player */}
-      <WebView
-        source={{ uri: getPlayerUrl() }}
-        className="flex-1 bg-black"
-        allowsFullscreenVideo={true}
-        mediaPlaybackRequiresUserAction={false}
-        javaScriptEnabled={true}
-        domStorageEnabled={true}
-        startInLoadingState={true}
-        scalesPageToFit={true}
-        mixedContentMode="compatibility"
-        onLoadStart={() => setIsBuffering(true)}
-        onLoadEnd={() => setIsBuffering(false)}
-        onError={() => Alert.alert('Erro', 'Não foi possível carregar o vídeo')}
+      <StatusBar barStyle="light-content" backgroundColor="#000" hidden />
+
+      {/* Player em tela cheia */}
+      <MiniBrowserPlayer
+        embedUrl={currentEmbedUrl}
+        media={media}
+        episode={episode}
+        onClose={handleClose}
+        onBack={handleClose}
+        onNextEpisode={hasNextEpisode() ? handleNextEpisode : null}
+        onPreviousEpisode={hasPreviousEpisode() ? handlePreviousEpisode : null}
+        isSeries={!!episode}
       />
 
-      {/* Touch Area */}
-      <TouchableWithoutFeedback onPress={handleScreenTouch}>
-        <View className="absolute inset-0" />
-      </TouchableWithoutFeedback>
-
-      {/* Buffering Indicator */}
-      {isBuffering && (
-        <View className="absolute inset-0 justify-center items-center bg-black/30">
-          <View className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin" />
-          <Text className="text-white mt-4 text-lg font-medium">Carregando...</Text>
-        </View>
-      )}
-
-      {/* Controls Overlay */}
-      {isControlsVisible && !isLocked && (
-        <Animated.View className="absolute inset-0" style={{ opacity: controlsOpacity }}>
-          {/* Gradients */}
-          <View className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-black/80 to-transparent" />
-          <View className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-black/80 to-transparent" />
-
-          {/* Top Bar */}
-          <View className="absolute top-0 left-0 right-0 flex-row items-center justify-between px-6 pt-8 pb-4">
-            <View className="flex-row items-center flex-1">
-              <TouchableOpacity
-                onPress={() => navigation.goBack()}
-                className="p-3 rounded-full bg-black/40 mr-4"
-              >
-                <Icon name="arrow-back" size={24} color="#fff" />
-              </TouchableOpacity>
-
-              <View className="flex-1">
-                <View className="flex-row items-center mb-1">
-                  <View className="bg-red-600 px-2 py-1 rounded-sm mr-2">
-                    <Text className="text-white text-xs font-bold">N</Text>
-                  </View>
-                  <View className="bg-white/20 px-2 py-1 rounded-sm mr-2">
-                    <Text className="text-white text-xs font-semibold">{getMediaType()}</Text>
-                  </View>
-                  <View className="bg-white/20 px-2 py-1 rounded-sm">
-                    <Text className="text-white text-xs font-semibold">{selectedQuality}</Text>
-                  </View>
-                </View>
-                <Text className="text-white text-base font-medium" numberOfLines={1}>
-                  {getMediaTitle()}
-                </Text>
-              </View>
-            </View>
-
-            <View className="flex-row items-center">
-              <TouchableOpacity
-                onPress={() => setShowQualityOptions(!showQualityOptions)}
-                className="p-3 rounded-full bg-black/40 mr-3"
-              >
-                <MaterialCommunityIcons name="high-definition" size={24} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleLockPress}
-                className="p-3 rounded-full bg-black/40"
-              >
-                <MaterialCommunityIcons name="lock-open" size={24} color="#fff" />
+      {/* Modal de seleção de servidor */}
+      {showServerModal && (
+        <View className="absolute inset-0 z-50 items-center justify-center bg-black bg-opacity-90">
+          <View className="mx-5 w-80 max-w-full rounded-2xl bg-gray-900 p-6">
+            <View className="mb-6 flex-row items-center justify-between">
+              <Text className="text-lg font-bold text-white">Trocar Servidor</Text>
+              <TouchableOpacity onPress={() => setShowServerModal(false)}>
+                <Icon name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
-          </View>
 
-          {/* Center Controls */}
-          <View className="absolute inset-0 justify-center items-center">
-            <View className="flex-row items-center space-x-8">
-              <TouchableOpacity
-                onPress={() => handleSeekTo(Math.max(0, currentTime - 10))}
-                className="p-4 rounded-full bg-black/40"
-              >
-                <MaterialCommunityIcons name="rewind-10" size={32} color="#fff" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handlePlayPause}
-                className="p-6 rounded-full bg-white/20"
-              >
-                <Icon name={isPlaying ? "pause" : "play-arrow"} size={48} color="#fff" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => handleSeekTo(Math.min(duration, currentTime + 10))}
-                className="p-4 rounded-full bg-black/40"
-              >
-                <MaterialCommunityIcons name="fast-forward-10" size={32} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Bottom Controls */}
-          <View className="absolute bottom-0 left-0 right-0 px-6 pb-6">
-            <View className="mb-4">
-              <Slider
-                style={{ width: '100%', height: 40 }}
-                minimumValue={0}
-                maximumValue={duration}
-                value={currentTime}
-                onValueChange={handleSeekTo}
-                minimumTrackTintColor="#E50914"
-                maximumTrackTintColor="#333"
-                thumbStyle={{ backgroundColor: '#E50914', width: 20, height: 20 }}
-              />
-              
-              <View className="flex-row justify-between items-center mt-2">
-                <Text className="text-white text-sm">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </Text>
-                
-                <View className="flex-row items-center space-x-4">
+            {/* Seleção de Servidor */}
+            {hasMultipleServers() && (
+              <View className="mb-6">
+                <Text className="mb-3 text-sm text-gray-300">Selecione o servidor:</Text>
+                <View className="flex-row gap-3">
                   <TouchableOpacity
-                    onPress={() => setShowSpeedOptions(!showSpeedOptions)}
-                    className="p-2 rounded bg-black/40"
-                  >
-                    <Text className="text-white text-sm font-medium">{playbackSpeed}x</Text>
+                    className={`flex-1 rounded-lg px-4 py-3 ${
+                      selectedServer === 1 ? 'bg-red-500' : 'bg-gray-700'
+                    }`}
+                    onPress={() => handleServerChange(1)}>
+                    <Text
+                      className={`text-center font-bold ${
+                        selectedServer === 1 ? 'text-white' : 'text-gray-300'
+                      }`}>
+                      Servidor 1
+                    </Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity className="p-2 rounded-full bg-black/40">
-                    <MaterialCommunityIcons name="fullscreen" size={20} color="#fff" />
+
+                  <TouchableOpacity
+                    className={`flex-1 rounded-lg px-4 py-3 ${
+                      selectedServer === 2 ? 'bg-red-500' : 'bg-gray-700'
+                    }`}
+                    onPress={() => handleServerChange(2)}>
+                    <Text
+                      className={`text-center font-bold ${
+                        selectedServer === 2 ? 'text-white' : 'text-gray-300'
+                      }`}>
+                      Servidor 2
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
+            )}
+
+            {/* Informações do que está sendo reproduzido */}
+            <View className="border-t border-gray-700 pt-4">
+              <Text className="mb-2 text-xs text-gray-400">Reproduzindo:</Text>
+              <Text className="text-base font-bold text-white">{media?.title}</Text>
+              {episode && (
+                <Text className="mt-1 text-sm text-gray-300">
+                  Episódio {episode.numeroEpisodio} - {episode.title}
+                </Text>
+              )}
             </View>
           </View>
-
-          {/* Speed Options */}
-          {showSpeedOptions && (
-            <View className="absolute bottom-20 right-6 bg-black/90 rounded-lg p-4">
-              <Text className="text-white text-sm font-semibold mb-3">Velocidade</Text>
-              {speedOptions.map((speed) => (
-                <TouchableOpacity
-                  key={speed}
-                  onPress={() => {
-                    setPlaybackSpeed(speed);
-                    setShowSpeedOptions(false);
-                  }}
-                  className="py-2 px-4 rounded"
-                >
-                  <Text className={`text-sm ${speed === playbackSpeed ? 'text-red-500 font-bold' : 'text-white'}`}>
-                    {speed}x
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          {/* Quality Options */}
-          {showQualityOptions && (
-            <View className="absolute top-20 right-6 bg-black/90 rounded-lg p-4">
-              <Text className="text-white text-sm font-semibold mb-3">Qualidade</Text>
-              {qualityOptions.map((quality) => (
-                <TouchableOpacity
-                  key={quality}
-                  onPress={() => {
-                    setSelectedQuality(quality);
-                    setShowQualityOptions(false);
-                  }}
-                  className="py-2 px-4 rounded"
-                >
-                  <Text className={`text-sm ${quality === selectedQuality ? 'text-red-500 font-bold' : 'text-white'}`}>
-                    {quality}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </Animated.View>
-      )}
-
-      {/* Lock Screen */}
-      {isLocked && (
-        <View className="absolute inset-0 bg-black/50 justify-center items-center">
-          <TouchableOpacity
-            onPress={handleLockPress}
-            className="bg-black/80 p-6 rounded-full"
-          >
-            <MaterialCommunityIcons name="lock" size={48} color="#fff" />
-          </TouchableOpacity>
-          <Text className="text-white mt-4 text-lg font-medium">Tela bloqueada</Text>
-          <Text className="text-white/60 text-sm mt-1">Toque para desbloquear</Text>
         </View>
       )}
     </View>
   );
 };
+
+export default PlayerScreen;

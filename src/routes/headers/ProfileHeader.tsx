@@ -14,12 +14,16 @@ interface ProfileHeaderProps {
   navigation: any;
   scrollY?: Animated.Value;
   title?: string;
+  onSettings?: () => void;
+  onNotifications?: () => void;
 }
 
-export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ 
-  navigation, 
-  scrollY, 
-  title = "Perfil" 
+export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
+  navigation,
+  scrollY,
+  title = "Perfil",
+  onSettings,
+  onNotifications,
 }) => {
   const [showBackground, setShowBackground] = useState(false);
 
@@ -32,9 +36,27 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     }
   }, [scrollY]);
 
+  const handleSettings = () => {
+    if (onSettings) {
+      onSettings();
+    } else {
+      // Implementação padrão se não houver callback
+      console.log('Navegando para configurações...');
+    }
+  };
+
+  const handleNotifications = () => {
+    if (onNotifications) {
+      onNotifications();
+    } else {
+      // Implementação padrão se não houver callback
+      console.log('Navegando para notificações...');
+    }
+  };
+
   return (
     <View className="absolute top-0 left-0 right-0 z-50 h-20">
-      <StatusBar 
+      <StatusBar
         barStyle="light-content"
         backgroundColor="transparent"
         translucent
@@ -53,11 +75,17 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
           <Text className="text-white text-xl font-bold">{title}</Text>
           
           <View className="flex-row items-center">
-            <TouchableOpacity className="p-2 mr-2">
+            <TouchableOpacity 
+              className="p-2 mr-2"
+              onPress={handleNotifications}
+            >
               <Icon name="notifications" size={24} color="#FFFFFF" />
             </TouchableOpacity>
             
-            <TouchableOpacity className="p-2">
+            <TouchableOpacity 
+              className="p-2"
+              onPress={handleSettings}
+            >
               <Icon name="settings" size={24} color="#FFFFFF" />
             </TouchableOpacity>
           </View>

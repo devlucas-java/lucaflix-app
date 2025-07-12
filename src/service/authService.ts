@@ -201,29 +201,70 @@ class AuthService {
     }
   }
 
-  // Logout - CORRIGIDO para React Native
+  // Logout - CORRIGIDO COMPLETAMENTE
   async logout(): Promise<void> {
     if (theme.development) {
-      console.log('Fazendo logout...');
+      console.log('Iniciando logout...');
     }
     
     try {
-      // Remover dados do AsyncStorage
+      // 1. Tentar fazer logout no servidor (opcional - não bloqueia se falhar)
+      try {
+        await api.post('/auth/logout');
+        if (theme.development) {
+          console.log('Logout no servidor realizado com sucesso');
+        }
+      } catch (error) {
+        if (theme.development) {
+          console.warn('Erro ao fazer logout no servidor (continuando):', error);
+        }
+        // Não bloqueamos o logout local se o servidor falhar
+      }
+      
+      // 2. Limpar todos os dados locais
+      await this.clearAllAuthData();
+      
+      if (theme.development) {
+        console.log('Logout local realizado com sucesso');
+      }
+      
+    } catch (error) {
+      console.error('Erro crítico no logout:', error);
+      // Mesmo com erro, tentar limpar os dados
+      try {
+        await this.clearAllAuthData();
+      } catch (clearError) {
+        console.error('Erro ao limpar dados após falha no logout:', clearError);
+      }
+    }
+  }
+
+  // Método auxiliar para limpar todos os dados de autenticação
+  private async clearAllAuthData(): Promise<void> {
+    try {
+      // Limpar AsyncStorage
       await AsyncStorage.multiRemove([
         this.TOKEN_KEY,
         this.USER_KEY,
         this.REMEMBER_KEY
       ]);
       
+      // Limpar headers da API (se existir)
+      if (api.defaults && api.defaults.headers) {
+        delete api.defaults.headers.common['Authorization'];
+        delete api.defaults.headers['Authorization'];
+      }
+      
       if (theme.development) {
-        console.log('Logout realizado. Dados removidos.');
+        console.log('Todos os dados de autenticação foram limpos');
       }
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      console.error('Erro ao limpar dados de autenticação:', error);
+      throw error;
     }
   }
 
-  // Verificar se está autenticado - MELHORADO
+  // Verificar se está autenticado - CORRIGIDO
   async isAuthenticated(): Promise<boolean> {
     try {
       const token = await this.getToken();
@@ -265,6 +306,17 @@ class AuthService {
       }
     } catch (error) {
       console.error('Erro ao verificar autenticação:', error);
+      return false;
+    }
+  }
+
+  // Versão síncrona para verificação rápida (baseada em cache)
+  isAuthenticatedSync(): boolean {
+    try {
+      // Esta é uma verificação básica e rápida
+      // Para verificação completa, use isAuthenticated()
+      return false; // Sempre retorna false para forçar verificação async
+    } catch (error) {
       return false;
     }
   }
@@ -325,7 +377,7 @@ class AuthService {
       }
       
       // Primeiro limpar dados existentes
-      await this.clearAuthData();
+      await this.clearAllAuthData();
       
       // Salvar dados no AsyncStorage
       await AsyncStorage.multiSet([
@@ -333,6 +385,11 @@ class AuthService {
         [this.USER_KEY, JSON.stringify(authData.user)],
         [this.REMEMBER_KEY, rememberMe.toString()]
       ]);
+      
+      // Configurar header de autorização na API
+      if (api.defaults && api.defaults.headers) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${authData.accessToken}`;
+      }
       
       // Verificar se foi salvo corretamente
       if (theme.development) {
@@ -345,7 +402,7 @@ class AuthService {
     }
   }
 
-  // Método auxiliar para limpar dados de autenticação
+  // Método auxiliar para limpar dados de autenticação (antigo)
   private async clearAuthData(): Promise<void> {
     try {
       await AsyncStorage.multiRemove([

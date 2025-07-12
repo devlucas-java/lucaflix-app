@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { movieService } from '../service/movieService';
 import { serieService } from '../service/seriesService';
 import { animeService } from '../service/animeService';
@@ -12,106 +13,13 @@ import type {
 } from '../types/mediaTypes';
 import { Type } from '../types/mediaTypes';
 
-// ===== FUNÇÕES DE FORMATAÇÃO DE URL =====
-
-export const formatTitleForUrl = (
-  id: number,
-  title: string,
-  year: number,
-  type: Type | string
-): string => {
-  let mediaType: string;
-
-  switch (type) {
-    case Type.MOVIE:
-    case 'movie':
-      mediaType = 'filme';
-      break;
-    case Type.SERIE:
-    case 'serie':
-      mediaType = 'serie';
-      break;
-    case Type.ANIME:
-    case 'anime':
-      mediaType = 'anime';
-      break;
-    default:
-      mediaType = 'midia'; // fallback genérico
-  }
-
-  const formattedTitle = title
-    .toLowerCase()
-    .normalize('NFD') // Remove acentos
-    .replace(/[\u0300-\u036f]/g, '') // Remove diacríticos
-    .replace(/[^a-z0-9\s-]/g, '') // Remove caracteres especiais
-    .replace(/\s+/g, '-') // Substitui espaços por hífens
-    .replace(/-+/g, '-') // Remove hífens duplicados
-    .trim()
-    .replace(/^-+|-+$/g, ''); // Remove hífens do início e fim
-
-  return `/${mediaType}/${id}/${formattedTitle}-${year}`;
-};
-
-export const parseMediaId = (params: string): number | null => {
-  const id = parseInt(params);
-  return isNaN(id) ? null : id;
-};
-
-// Função para extrair ID da URL no formato /filme/id/titulo-ano, /serie/id/titulo-ano ou /anime/id/titulo-ano
-export const parseMediaIdFromUrl = (pathname: string): number | null => {
-  const pathParts = pathname.split('/').filter(Boolean);
-  
-  // Novo formato: /filme/id/titulo-ano, /serie/id/titulo-ano ou /anime/id/titulo-ano
-  if (pathParts.length >= 2 && (pathParts[0] === 'filme' || pathParts[0] === 'serie' || pathParts[0] === 'anime')) {
-    const id = parseInt(pathParts[1]);
-    if (!isNaN(id) && id > 0) {
-      return id;
-    }
-  }
-  
-  // Formato legacy: /id/tipo-titulo-ano
-  if (pathParts.length >= 1) {
-    const firstPart = pathParts[0];
-    const id = parseInt(firstPart);
-    
-    if (!isNaN(id) && id > 0) {
-      return id;
-    }
-  }
-  
-  return null;
-};
-
-// Função para determinar se é filme, série ou anime pela URL
-export const getMediaTypeFromUrl = (pathname: string): 'movie' | 'serie' | 'anime' | null => {
-  const pathParts = pathname.split('/').filter(Boolean);
-  
-  // Novo formato: /filme/id/titulo-ano, /serie/id/titulo-ano ou /anime/id/titulo-ano
-  if (pathParts.length >= 1) {
-    if (pathParts[0] === 'filme') {
-      return 'movie';
-    } else if (pathParts[0] === 'serie') {
-      return 'serie';
-    } else if (pathParts[0] === 'anime') {
-      return 'anime';
-    }
-  }
-  
-  // Formato legacy: /id/tipo-titulo-ano
-  if (pathParts.length >= 2) {
-    const titleSlug = pathParts[1];
-    
-    if (titleSlug.startsWith('filme-')) {
-      return 'movie';
-    } else if (titleSlug.startsWith('serie-')) {
-      return 'serie';
-    } else if (titleSlug.startsWith('anime-')) {
-      return 'anime';
-    }
-  }
-  
-  return null;
-};
+// ===== CONSTANTES PARA ASYNCSTORAGE =====
+const LIKED_MOVIES_KEY = 'likedMovies';
+const LIKED_SERIES_KEY = 'likedSeries';
+const LIKED_ANIMES_KEY = 'likedAnimes';
+const MY_LIST_MOVIES_KEY = 'myListMovies';
+const MY_LIST_SERIES_KEY = 'myListSeries';
+const MY_LIST_ANIMES_KEY = 'myListAnimes';
 
 // ===== FUNÇÕES DE FORMATAÇÃO DE DATA E TEMPO =====
 
@@ -144,21 +52,89 @@ export const isAnime = (media: any): media is AnimeSimpleDTO | AnimeCompleteDTO 
          (('totalTemporadas' in media || 'totalEpisodios' in media) && ('embed1' in media || 'embed2' in media));
 };
 
+// ===== FUNÇÕES AUXILIARES PARA ASYNCSTORAGE =====
+
+const getStorageKey = (media: any, type: 'like' | 'myList'): string => {
+  if (isMovie(media)) {
+    return type === 'like' ? LIKED_MOVIES_KEY : MY_LIST_MOVIES_KEY;
+  } else if (isSerie(media)) {
+    return type === 'like' ? LIKED_SERIES_KEY : MY_LIST_SERIES_KEY;
+  } else if (isAnime(media)) {
+    return type === 'like' ? LIKED_ANIMES_KEY : MY_LIST_ANIMES_KEY;
+  }
+  throw new Error('Tipo de mídia não reconhecido');
+};
+
+const getStoredIds = async (storageKey: string): Promise<string[]> => {
+  try {
+    const storedData = await AsyncStorage.getItem(storageKey);
+    return storedData ? JSON.parse(storedData) : [];
+  } catch (error) {
+    console.error('Erro ao recuperar dados do AsyncStorage:', error);
+    return [];
+  }
+};
+
+const saveStoredIds = async (storageKey: string, ids: string[]): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(storageKey, JSON.stringify(ids));
+  } catch (error) {
+    console.error('Erro ao salvar dados no AsyncStorage:', error);
+    throw error;
+  }
+};
+
+const toggleIdInStorage = async (storageKey: string, mediaId: string): Promise<boolean> => {
+  try {
+    const currentIds = await getStoredIds(storageKey);
+    const index = currentIds.indexOf(mediaId);
+    
+    if (index > -1) {
+      // Remove se já existir
+      currentIds.splice(index, 1);
+      await saveStoredIds(storageKey, currentIds);
+      return false; // Removido
+    } else {
+      // Adiciona se não existir
+      currentIds.push(mediaId);
+      await saveStoredIds(storageKey, currentIds);
+      return true; // Adicionado
+    }
+  } catch (error) {
+    console.error('Erro ao alterar dados no AsyncStorage:', error);
+    throw error;
+  }
+};
+
 // ===== FUNÇÕES DE MINHA LISTA/ LIKE =====
 
 export const toggleLike = async (media: any): Promise<boolean> => {
   try {
-    const mediaId = media.id;
+    const mediaId = media.id.toString();
+    const storageKey = getStorageKey(media, 'like');
     
-    if (isMovie(media)) {
-      return await movieService.toggleLike(mediaId);
-    } else if (isSerie(media)) {
-      return await serieService.toggleLike(mediaId);
-    } else if (isAnime(media)) {
-      return await animeService.toggleLike(mediaId);
+    // Primeiro tenta com o serviço (se estiver online)
+    let result: boolean;
+    try {
+      if (isMovie(media)) {
+        result = await movieService.toggleLike(mediaId);
+      } else if (isSerie(media)) {
+        result = await serieService.toggleLike(mediaId);
+      } else if (isAnime(media)) {
+        result = await animeService.toggleLike(mediaId);
+      } else {
+        throw new Error('Tipo de mídia não reconhecido para toggle like');
+      }
+    } catch (serviceError) {
+      console.warn('Serviço indisponível, usando AsyncStorage:', serviceError);
+      // Fallback para AsyncStorage se o serviço falhar
+      result = await toggleIdInStorage(storageKey, mediaId);
     }
     
-    throw new Error('Tipo de mídia não reconhecido para toggle like');
+    // Sempre sincroniza com AsyncStorage
+    await toggleIdInStorage(storageKey, mediaId);
+    
+    return result;
   } catch (error) {
     console.error('Erro ao dar like na mídia:', error);
     throw error;
@@ -167,19 +143,113 @@ export const toggleLike = async (media: any): Promise<boolean> => {
 
 export const toggleMyList = async (media: any): Promise<boolean> => {
   try {
-    const mediaId = media.id;
+    const mediaId = media.id.toString();
+    const storageKey = getStorageKey(media, 'myList');
     
-    if (isMovie(media)) {
-      return await movieService.toggleMyList(mediaId);
-    } else if (isSerie(media)) {
-      return await serieService.toggleMyList(mediaId);
-    } else if (isAnime(media)) {
-      return await animeService.toggleMyList(mediaId);
+    // Primeiro tenta com o serviço (se estiver online)
+    let result: boolean;
+    try {
+      if (isMovie(media)) {
+        result = await movieService.toggleMyList(mediaId);
+      } else if (isSerie(media)) {
+        result = await serieService.toggleMyList(mediaId);
+      } else if (isAnime(media)) {
+        result = await animeService.toggleMyList(mediaId);
+      } else {
+        throw new Error('Tipo de mídia não reconhecido para toggle my list');
+      }
+    } catch (serviceError) {
+      console.warn('Serviço indisponível, usando AsyncStorage:', serviceError);
+      // Fallback para AsyncStorage se o serviço falhar
+      result = await toggleIdInStorage(storageKey, mediaId);
     }
     
-    throw new Error('Tipo de mídia não reconhecido para toggle my list');
+    // Sempre sincroniza com AsyncStorage
+    await toggleIdInStorage(storageKey, mediaId);
+    
+    return result;
   } catch (error) {
     console.error('Erro ao adicionar a minha lista:', error);
+    throw error;
+  }
+};
+
+// ===== FUNÇÕES PARA VERIFICAR STATUS =====
+
+export const isLiked = async (media: any): Promise<boolean> => {
+  try {
+    const mediaId = media.id.toString();
+    const storageKey = getStorageKey(media, 'like');
+    const likedIds = await getStoredIds(storageKey);
+    return likedIds.includes(mediaId);
+  } catch (error) {
+    console.error('Erro ao verificar se mídia está curtida:', error);
+    return false;
+  }
+};
+
+export const isInMyList = async (media: any): Promise<boolean> => {
+  try {
+    const mediaId = media.id.toString();
+    const storageKey = getStorageKey(media, 'myList');
+    const myListIds = await getStoredIds(storageKey);
+    return myListIds.includes(mediaId);
+  } catch (error) {
+    console.error('Erro ao verificar se mídia está na lista:', error);
+    return false;
+  }
+};
+
+// ===== FUNÇÕES PARA RECUPERAR LISTAS =====
+
+export const getLikedMovies = async (): Promise<string[]> => {
+  return await getStoredIds(LIKED_MOVIES_KEY);
+};
+
+export const getLikedSeries = async (): Promise<string[]> => {
+  return await getStoredIds(LIKED_SERIES_KEY);
+};
+
+export const getLikedAnimes = async (): Promise<string[]> => {
+  return await getStoredIds(LIKED_ANIMES_KEY);
+};
+
+export const getMyListMovies = async (): Promise<string[]> => {
+  return await getStoredIds(MY_LIST_MOVIES_KEY);
+};
+
+export const getMyListSeries = async (): Promise<string[]> => {
+  return await getStoredIds(MY_LIST_SERIES_KEY);
+};
+
+export const getMyListAnimes = async (): Promise<string[]> => {
+  return await getStoredIds(MY_LIST_ANIMES_KEY);
+};
+
+// ===== FUNÇÕES PARA LIMPAR DADOS =====
+
+export const clearAllLikes = async (): Promise<void> => {
+  try {
+    await AsyncStorage.multiRemove([
+      LIKED_MOVIES_KEY,
+      LIKED_SERIES_KEY,
+      LIKED_ANIMES_KEY
+    ]);
+  } catch (error) {
+    console.error('Erro ao limpar likes:', error);
+    throw error;
+  }
+};
+
+export const clearMyLists = async (): Promise<void> => {
+  try {
+    await AsyncStorage.multiRemove([
+      MY_LIST_MOVIES_KEY,
+      MY_LIST_SERIES_KEY,
+      MY_LIST_ANIMES_KEY
+    ]);
+  } catch (error) {
+    console.error('Erro ao limpar listas:', error);
     throw error;
   }
 };
@@ -270,120 +340,4 @@ export const getMediaDuration = (media: any): string => {
     return 'Anime';
   }
   return '';
-};
-
-// ===== FUNÇÕES PARA GERENCIAR URLS =====
-
-/**
- * Função para processar parâmetros de rota e extrair informações da mídia
- */
-export const processRouteParams = (params: { 
-  mediaType?: string; 
-  id?: string; 
-  titleSlug?: string;
-  // Mantém compatibilidade com formato antigo
-  legacyId?: string;
-  legacyTitleSlug?: string;
-}): {
-  mediaId: number | null;
-  mediaType: 'movie' | 'serie' | 'anime' | null;
-} => {
-  let mediaId: number | null = null;
-  let mediaType: 'movie' | 'serie' | 'anime' | null = null;
-
-  // Novo formato: /filme/id/titulo-ano, /serie/id/titulo-ano ou /anime/id/titulo-ano
-  if (params.mediaType && params.id) {
-    if (params.mediaType === 'filme') {
-      mediaType = 'movie';
-    } else if (params.mediaType === 'serie') {
-      mediaType = 'serie';
-    } else if (params.mediaType === 'anime') {
-      mediaType = 'anime';
-    }
-    
-    mediaId = parseMediaId(params.id);
-  }
-  
-  // Formato legacy: /id/tipo-titulo-ano
-  else if (params.legacyId) {
-    mediaId = parseMediaId(params.legacyId);
-    
-    if (params.legacyTitleSlug) {
-      if (params.legacyTitleSlug.startsWith('filme-')) {
-        mediaType = 'movie';
-      } else if (params.legacyTitleSlug.startsWith('serie-')) {
-        mediaType = 'serie';
-      } else if (params.legacyTitleSlug.startsWith('anime-')) {
-        mediaType = 'anime';
-      }
-    }
-  }
-
-  return { mediaId, mediaType };
-};
-
-// ===== FUNÇÃO PARA DETECTAR TIPO DE MÍDIA AUTOMATICAMENTE =====
-
-/**
- * Função auxiliar para detectar automaticamente o tipo de mídia
- * quando não é possível determinar pela URL ou tipo
- */
-export const detectMediaType = (media: any): 'movie' | 'serie' | 'anime' => {
-  // Verifica se tem duracaoMinutos (característico de filme)
-  if ('duracaoMinutos' in media && media.duracaoMinutos > 0) {
-    return 'movie';
-  }
-  
-  // Verifica se tem totalTemporadas e não tem embed (característico de série)
-  if ('totalTemporadas' in media && !('embed1' in media && 'embed2' in media)) {
-    return 'serie';
-  }
-  
-  // Verifica se tem totalEpisodios ou embed (característico de anime)
-  if ('totalEpisodios' in media || 'embed1' in media || 'embed2' in media || 
-      (media.title && /anime|manga|otaku/i.test(media.title))) {
-    return 'anime';
-  }
-  
-  // Se tem temporadas mas não foi identificado como série, pode ser anime
-  if ('totalTemporadas' in media) {
-    return 'anime';
-  }
-  
-  // Fallback para movie
-  return 'movie';
-};
-
-// ===== FUNÇÃO PARA CARREGAR MÍDIA POR ID =====
-
-/**
- * Função universal para carregar qualquer tipo de mídia por ID
- * Tenta carregar como filme, série e anime até encontrar
- */
-export const loadMediaById = async (id: number): Promise<{
-  media: MovieCompleteDTO | SerieCompleteDTO | AnimeCompleteDTO;
-  type: 'movie' | 'serie';
-} | null> => {
-  try {
-    // Tenta carregar como filme
-    try {
-      const movieData = await movieService.getMovieById(id);
-      return { media: movieData, type: 'movie' };
-    } catch (movieError) {
-      console.log('Não encontrado como filme, tentando série...');
-    }
-
-    // Tenta carregar como série
-    try {
-      const serieData = await serieService.getSerieById(id);
-      return { media: serieData, type: 'serie' };
-    } catch (serieError) {
-      console.log('Não encontrado como série, tentando anime...');
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Erro ao carregar mídia por ID:', error);
-    return null;
-  }
 };

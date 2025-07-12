@@ -170,15 +170,14 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   return (
     <View
-      className="z-5 center m-6 flex rounded-lg border-2 border-gray-200 bg-black"
+      className="z-5 center m-0 flex bg-black"
       style={{ height: height * 0.75 }}>
       {/* Gradiente overlay */}
-        <View
-  className="absolute inset-0 z-10 items-center justify-center"
-  style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
-  pointerEvents="box-none" // permite toques passarem, se necessário
->
-</View>
+      <View
+        className="absolute inset-0 z-10 items-center justify-center"
+        style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+        pointerEvents="box-none" // permite toques passarem, se necessário
+      ></View>
 
       <ImageBackground
         source={{ uri: media.posterURL1 || media.posterURL2 }}
@@ -188,7 +187,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
       {/* Trailer WebView */}
       {showVideo && youtubeURL && !videoError && (
-        <View className="z-20 flex aspect-video w-full overflow-hidden">
+        <View className="z-20 flex mt-5 aspect-video w-full overflow-hidden">
           <WebView
             source={{ uri: youtubeURL }}
             className="flex-1 bg-transparent"
@@ -211,9 +210,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         className={`aspect-video ${showVideo ? '' : 'hidden'}`}
         onError={() => setBackdropError(true)}>
         {/* Conteúdo principal */}
-        <View className="-bottom-10 left-0 right-0 z-10 flex justify-center px-5 pb-10">
+        <View className="bottom-2 left-0 right-0 z-10 flex justify-center px-5 pb-10">
           {/* Logo ou título */}
-          <View className='w-full'>{renderLogoOrTitle()}</View>
+          <View className="w-full">{renderLogoOrTitle()}</View>
 
           {/* Informações */}
           <View className=" items-center justify-center">

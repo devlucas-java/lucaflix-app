@@ -1,8 +1,12 @@
 // routes/Router.tsx
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View, Text, ActivityIndicator } from 'react-native';
+
+// Importar o AuthProvider
+import { AuthProvider, useAuthContext } from './AuthProvider';
 
 // Importar suas telas
 import SplashScreen from '~/screens/auth/SplashScreen';
@@ -54,6 +58,23 @@ export type TabParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
+// Loading Component
+const LoadingScreen: React.FC = () => {
+  return (
+    <View style={{
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.colors.background
+    }}>
+      <ActivityIndicator size="large" color={theme.colors.primary} />
+      <Text style={{ color: theme.colors.text, marginTop: 16 }}>
+        Carregando...
+      </Text>
+    </View>
+  );
+};
+
 // Main Tab Navigator otimizado
 const MainTabNavigator: React.FC = () => {
   // Memorizar o componente TabBar para evitar re-criação
@@ -95,74 +116,124 @@ const MainTabNavigator: React.FC = () => {
   );
 };
 
-// Router principal
+// Stack Navigator interno (dentro do AuthProvider)
+const AppStackNavigator: React.FC = () => {
+  const { isAuthenticated, isLoading, isInitialized } = useAuthContext();
+
+  // Log para debug
+  useEffect(() => {
+    if (theme.development) {
+      console.log('🎯 AppStackNavigator - Estado atual:', {
+        isAuthenticated,
+        isLoading,
+        isInitialized
+      });
+    }
+  }, [isAuthenticated, isLoading, isInitialized]);
+
+  // Mostrar loading enquanto não inicializado ou carregando
+  if (!isInitialized || isLoading) {
+    return <LoadingScreen />;
+  }
+
+  return (
+    <Stack.Navigator
+      // Definir tela inicial baseada no estado de autenticação
+      screenOptions={{
+        headerShown: false,
+        navigationBarColor: theme.colors.background,
+        statusBarBackgroundColor: theme.colors.background,
+        statusBarStyle: 'light',
+        animation: 'fade',
+      }}
+    >
+      {isAuthenticated ? (
+        // Telas autenticadas
+        <>
+          <Stack.Screen
+            name="MainTabs"
+            component={MainTabNavigator}
+            options={{ 
+              gestureEnabled: false,
+              // Resetar a pilha quando autenticado
+              animationTypeForReplace: 'pop'
+            }}
+          />
+          
+          <Stack.Screen
+            name="MediaScreen"
+            component={MediaScreen}
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              gestureEnabled: true,
+              animation: 'slide_from_bottom',
+            }}
+          />
+
+          <Stack.Screen 
+            name="PlayerScreen" 
+            component={PlayerScreen}
+            options={{
+              presentation: 'fullScreenModal',
+              headerShown: false,
+              gestureEnabled: false,
+              orientation: 'landscape',
+              statusBarHidden: true,
+              animation: 'fade',
+            }}
+          />
+        </>
+      ) : (
+        // Telas não autenticadas
+        <>
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{
+              presentation: 'card',
+              gestureEnabled: false,
+              // Resetar a pilha quando não autenticado
+              animationTypeForReplace: 'pop'
+            }}
+          />
+          
+          <Stack.Screen
+            name="Register"
+            component={RegisterScreen}
+            options={{
+              presentation: 'card',
+              gestureEnabled: false,
+            }}
+          />
+          
+          <Stack.Screen
+            name="Splash"
+            component={SplashScreen}
+            options={{ 
+              gestureEnabled: false,
+              // Splash pode ser acessado mas não deve ser a tela inicial
+              headerShown: false,
+            }}
+          />
+        </>
+      )}
+    </Stack.Navigator>
+  );
+};
+
+// Hook para usar o contexto de autenticação nas telas
+export const useAuth = () => {
+  return useAuthContext();
+};
+
+// Router principal com AuthProvider
 const Router: React.FC = () => {
   return (
     <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="MainTabs"
-        screenOptions={{
-          headerShown: false,
-          navigationBarColor: theme.colors.background,
-          statusBarBackgroundColor: theme.colors.background,
-          statusBarStyle: 'light',
-          animation: 'fade', // Animação mais leve
-        }}
-      >
-        <Stack.Screen
-          name="Splash"
-          component={SplashScreen}
-          options={{ gestureEnabled: false }}
-        />
-        
-        <Stack.Screen
-          name="Login"
-          component={LoginScreen}
-          options={{
-            presentation: 'card',
-            gestureEnabled: false,
-          }}
-        />
-        
-        <Stack.Screen
-          name="Register"
-          component={RegisterScreen}
-          options={{
-            presentation: 'card',
-            gestureEnabled: false,
-          }}
-        />
-        
-        <Stack.Screen
-          name="MainTabs"
-          component={MainTabNavigator}
-          options={{ gestureEnabled: false }}
-        />
-        
-        <Stack.Screen
-          name="MediaScreen"
-          component={MediaScreen}
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-            gestureEnabled: true,
-            animation: 'slide_from_bottom',
-          }}
-        />
-
-        <Stack.Screen 
-          name="PlayerScreen" 
-          component={PlayerScreen}
-          options={{
-            presentation: 'fullScreenModal',
-            headerShown: false,
-            gestureEnabled: false, // Desabilitar gesture para voltar
-            orientation: 'landscape', // Forçar orientação paisagem
-            statusBarHidden: true,
-            animation: 'fade',
-          }}
-        />
-      </Stack.Navigator>
+      <AuthProvider>
+        <AppStackNavigator />
+      </AuthProvider>
     </NavigationContainer>
   );
 };

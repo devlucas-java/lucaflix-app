@@ -9,69 +9,26 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  ImageBackground,
   Switch,
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import Icon from 'react-native-vector-icons';
-import authService from '../../service/authService';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useAuthContext } from '../../routes/AuthProvider';
 
 const { width, height } = Dimensions.get('window');
 
-// Hook useAuth para React Native
-const useAuth = () => {
-  const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const currentUser = await authService.getCurrentUser();
-        const authenticated = await authService.isAuthenticated();
-        setUser(currentUser);
-        setIsAuthenticated(authenticated);
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  const login = async (credentials, rememberMe = false) => {
-    setIsLoading(true);
-    try {
-      const response = await authService.loginWithRemember(credentials, rememberMe);
-      setUser(response.user);
-      setIsAuthenticated(true);
-      return response;
-    } catch (error) {
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    await authService.logout();
-    setUser(null);
-    setIsAuthenticated(false);
-  };
-
-  return {
-    user,
-    isAuthenticated,
-    isLoading,
-    login,
-    logout,
-  };
-};
-
 const LoginScreen = () => {
   const navigation = useNavigation();
-  const { login, isLoading } = useAuth();
+  const { 
+    login, 
+    isAuthenticated, 
+    isLoading: authLoading, 
+    authError,
+    clearAuthError 
+  } = useAuthContext();
   
   const [formData, setFormData] = useState({
     usernameOrEmail: '',
@@ -80,20 +37,36 @@ const LoginScreen = () => {
   });
   
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const [localError, setLocalError] = useState('');
+
+  // Verificar se já está autenticado ao carregar a tela
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('Usuário já está autenticado, redirecionando...');
+      navigation.navigate('MainTabs');
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Limpar erros quando o componente monta ou quando authError muda
+  useEffect(() => {
+    if (authError) {
+      setLocalError(authError);
+      clearAuthError();
+    }
+  }, [authError, clearAuthError]);
 
   // Validação do formulário
   const validateForm = () => {
     if (!formData.usernameOrEmail.trim()) {
-      setError('Email ou nome de usuário é obrigatório.');
+      setLocalError('Email ou nome de usuário é obrigatório.');
       return false;
     }
     if (!formData.password) {
-      setError('Senha é obrigatória.');
+      setLocalError('Senha é obrigatória.');
       return false;
     }
     if (formData.password.length < 4) {
-      setError('Senha deve ter pelo menos 4 caracteres.');
+      setLocalError('Senha deve ter pelo menos 4 caracteres.');
       return false;
     }
     return true;
@@ -101,9 +74,11 @@ const LoginScreen = () => {
 
   // Lidar com o envio do formulário
   const handleSubmit = async () => {
-    setError('');
-
-    if (!validateForm()) return;
+    setLocalError('');
+    
+    if (!validateForm()) {
+      return;
+    }
 
     try {
       console.log('Iniciando login com dados:', {
@@ -111,7 +86,8 @@ const LoginScreen = () => {
         rememberMe: formData.rememberMe,
       });
 
-      const response = await login(
+      // Usar o hook useAuth para fazer login
+      await login(
         {
           usernameOrEmail: formData.usernameOrEmail,
           password: formData.password,
@@ -119,44 +95,46 @@ const LoginScreen = () => {
         formData.rememberMe
       );
 
-      console.log('Login bem-sucedido:', response.user);
+      console.log('Login bem-sucedido via hook');
 
-      // Pequeno delay para mostrar feedback visual e redirecionar para MainTabs
-      setTimeout(() => {
-        navigation.navigate('MainTabs');
-      }, 1000);
+      // O redirecionamento será feito automaticamente pelo useEffect
+      // quando isAuthenticated mudar para true
+      
     } catch (error) {
       console.error('Erro no login:', error);
-      setError(error.message || 'Erro ao fazer login. Tente novamente.');
+      setLocalError(error.message || 'Erro ao fazer login. Tente novamente.');
     }
   };
 
   // Atualizar dados do formulário
   const updateFormData = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    if (error) setError('');
+    if (localError) setLocalError('');
   };
+
+  // Função para continuar sem login
+  const handleContinueWithoutLogin = () => {
+    navigation.navigate('MainTabs');
+  };
+
+  // Função para ir para registro
+  const handleNavigateToRegister = () => {
+    navigation.navigate('Register');
+  };
+
+  // Mostrar erro local ou erro de autenticação
+  const displayError = localError || authError;
 
   return (
     <KeyboardAvoidingView
       className="flex-1 bg-black"
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Background with Netflix-style gradient */}
-      <LinearGradient
-        colors={['#000000', '#141414', '#000000']}
-        style={{
-          position: 'absolute',
-          width: width,
-          height: height,
-        }}
-      />
 
-      {/* Animated background elements */}
-      <View className="absolute inset-0">
-        <View className="absolute w-96 h-96 bg-red-600/10 rounded-full blur-3xl top-1/4 left-1/4" />
-        <View className="absolute w-96 h-96 bg-red-800/10 rounded-full blur-3xl bottom-1/4 right-1/4" />
-      </View>
+            <ImageBackground
+                source={require('../../../assets/bg-lucaflix.png')}
+                className="flex-1"
+                resizeMode="cover">
 
       <ScrollView
         className="flex-1"
@@ -178,17 +156,17 @@ const LoginScreen = () => {
             <Text className="text-gray-400 mb-8">Acesse sua conta LUCAFLIX</Text>
 
             {/* Error Message */}
-            {error ? (
+            {displayError ? (
               <View className="mb-6 p-4 bg-red-900/30 border border-red-600/50 rounded-lg flex-row items-center">
                 <Icon name="error" size={20} color="#EF4444" />
-                <Text className="text-red-400 text-sm ml-3 flex-1">{error}</Text>
+                <Text className="text-red-400 text-sm ml-3 flex-1">{displayError}</Text>
               </View>
             ) : null}
 
             {/* Login Form */}
-            <View className="space-y-6">
+            <View className="space-y-6 ">
               {/* Email/Username */}
-              <View className="relative">
+              <View className="relative m-2">
                 <TextInput
                   className="w-full px-4 py-4 bg-gray-900/80 border border-gray-700 rounded-lg text-white text-base"
                   placeholder="Email ou nome de usuário"
@@ -197,12 +175,12 @@ const LoginScreen = () => {
                   onChangeText={(text) => updateFormData('usernameOrEmail', text)}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!isLoading}
+                  editable={!authLoading}
                 />
               </View>
 
               {/* Password */}
-              <View className="relative">
+              <View className="relative m-2">
                 <TextInput
                   className="w-full px-4 py-4 pr-12 bg-gray-900/80 border border-gray-700 rounded-lg text-white text-base"
                   placeholder="Senha"
@@ -212,12 +190,12 @@ const LoginScreen = () => {
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   autoCorrect={false}
-                  editable={!isLoading}
+                  editable={!authLoading}
                 />
                 <TouchableOpacity
                   className="absolute right-4 top-1/2 transform -translate-y-1/2"
                   onPress={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
+                  disabled={authLoading}
                 >
                   <Icon
                     name={showPassword ? 'visibility-off' : 'visibility'}
@@ -229,12 +207,12 @@ const LoginScreen = () => {
 
               {/* Submit Button */}
               <TouchableOpacity
-                className="w-full bg-red-600 hover:bg-red-700 py-4 rounded-lg items-center justify-center"
+                className="w-full bg-red-600 m-2 hover:bg-red-700 py-4 rounded-lg items-center justify-center"
                 onPress={handleSubmit}
-                disabled={isLoading}
-                style={{ opacity: isLoading ? 0.5 : 1 }}
+                disabled={authLoading}
+                style={{ opacity: authLoading ? 0.5 : 1 }}
               >
-                {isLoading ? (
+                {authLoading ? (
                   <View className="flex-row items-center">
                     <ActivityIndicator size="small" color="#FFFFFF" />
                     <Text className="text-white font-semibold ml-2">
@@ -253,19 +231,19 @@ const LoginScreen = () => {
                 <TouchableOpacity
                   className="flex-row items-center"
                   onPress={() => updateFormData('rememberMe', !formData.rememberMe)}
-                  disabled={isLoading}
+                  disabled={authLoading}
                 >
                   <Switch
                     value={formData.rememberMe}
                     onValueChange={(value) => updateFormData('rememberMe', value)}
                     trackColor={{ false: '#374151', true: '#DC2626' }}
                     thumbColor={formData.rememberMe ? '#FFFFFF' : '#9CA3AF'}
-                    disabled={isLoading}
+                    disabled={authLoading}
                   />
                   <Text className="text-gray-400 ml-2">Lembrar de mim</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity disabled={isLoading}>
+                <TouchableOpacity disabled={authLoading}>
                   <Text className="text-red-500 text-sm">
                     Esqueceu a senha?
                   </Text>
@@ -279,7 +257,7 @@ const LoginScreen = () => {
                 Novo na LUCAFLIX?{' '}
                 <Text
                   className="text-white font-medium"
-                  onPress={() => navigation.navigate('Register')}
+                  onPress={handleNavigateToRegister}
                 >
                   Criar conta agora
                 </Text>
@@ -288,8 +266,9 @@ const LoginScreen = () => {
 
             {/* Continue without login */}
             <TouchableOpacity
-              className="mt-4 bg-gray-600 rounded-lg p-3 items-center"
-              onPress={() => navigation.navigate('MainTabs')}
+              className="mt-4 m-2 bg-gray-600 rounded-lg p-3 items-center"
+              onPress={handleContinueWithoutLogin}
+              disabled={authLoading}
             >
               <Text className="text-white font-medium">
                 Continuar sem login
@@ -309,6 +288,8 @@ const LoginScreen = () => {
           </View>
         </View>
       </ScrollView>
+      </ImageBackground>
+                
     </KeyboardAvoidingView>
   );
 };
