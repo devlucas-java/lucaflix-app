@@ -14,6 +14,7 @@ import type { MediaComplete } from '../types/mediaTypes';
 import { isMovieComplete, isSerieComplete } from '../types/mediaTypes';
 import { toggleMyList, toggleLike } from '../utils/mediaService';
 import authService from '../service/authService';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width, height } = Dimensions.get('window');
 
@@ -169,15 +170,62 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   }
 
   return (
-    <View
-      className="z-5 center m-0 flex bg-black"
-      style={{ height: height * 0.75 }}>
+    <View className="z-5 center m-0 flex bg-black" style={{ height: height * 0.75 }}>
       {/* Gradiente overlay */}
-      <View
-        className="absolute inset-0 z-10 items-center justify-center"
-        style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
-        pointerEvents="box-none" // permite toques passarem, se necessário
-      ></View>
+      <>
+        {/* Overlay leve por toda a tela */}
+        <View
+          style={{
+            position: 'absolute',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.2)',
+            zIndex: 9, // abaixo do gradiente
+          }}
+          // pointerEvents="box-none"
+        />
+
+        {/* Gradiente forte na parte inferior */}
+        <LinearGradient
+          colors={[
+            'rgba(0, 0, 0, 1)', // fundo forte
+            'rgba(0, 0, 0, 0.9)',
+            'rgba(0, 0, 0, 0.5)',
+            'rgba(0, 0, 0, 0.2)',
+            'rgba(0, 0, 0, 1)', // transparência para transição suave
+          ]}
+          locations={[0, 0.2, 0.4, 0.6, 1]}
+          start={{ x: 0.5, y: 1 }}
+          end={{ x: 0.5, y: 0 }}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            height: '60%', // ou ajuste como quiser
+            width: '100%',
+            zIndex: 10,
+          }}
+          // pointerEvents="box-none"
+        />
+
+        <LinearGradient
+          colors={[
+            'rgba(0, 0, 0, 0.5)', // topo — levemente escuro
+            'rgba(0, 0, 0, 0.2)', // intermediário
+            'rgba(0, 0, 0, 0.1)', // quase transparente
+            'transparent', // base
+          ]}
+          locations={[0, 0.3, 0.6, 1]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            height: '60%', // você pode ajustar conforme a necessidade
+            width: '100%',
+            zIndex: 30,
+          }}
+          // pointerEvents="box-none"
+        />
+      </>
 
       <ImageBackground
         source={{ uri: media.posterURL1 || media.posterURL2 }}
@@ -187,7 +235,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
       {/* Trailer WebView */}
       {showVideo && youtubeURL && !videoError && (
-        <View className="z-20 flex mt-5 aspect-video w-full overflow-hidden">
+        <View className="z-20 mt-5 flex aspect-video w-full overflow-hidden">
           <WebView
             source={{ uri: youtubeURL }}
             className="flex-1 bg-transparent"

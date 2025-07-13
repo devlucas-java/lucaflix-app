@@ -55,9 +55,9 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   };
 
   return (
-    <View className="absolute top-0 left-0 right-0 z-50 h-20">
+    <View className="absolute top-8 left-0 right-0 z-50 h-20">
       <StatusBar
-        barStyle="light-content"
+        barStyle="dark-content"
         backgroundColor="transparent"
         translucent
       />

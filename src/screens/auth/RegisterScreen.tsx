@@ -7,12 +7,11 @@ import {
   ScrollView,
   ImageBackground,
   Dimensions,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, NavigationProp, CommonActions } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import authService from '../../service/authService';
 
@@ -187,9 +186,14 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
 
       setSuccessMessage('Conta criada com sucesso! Redirecionando para o login...');
 
-      // Aguardar 2 segundos e redirecionar para a tela de login
+      // Aguardar 2 segundos e redirecionar para o login limpando o histórico
       setTimeout(() => {
-        navigation.navigate('Login');
+        navigation.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          })
+        );
       }, 2000);
     } catch (error) {
       console.error('Erro no registro:', error);
@@ -217,23 +221,28 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
     if (/\d/.test(password)) score++;
     if (/[^a-zA-Z\d]/.test(password)) score++;
 
-    if (score <= 2) return { score, label: 'Fraca', color: 'bg-red-500' };
-    if (score <= 3) return { score, label: 'Média', color: 'bg-yellow-500' };
-    return { score, label: 'Forte', color: 'bg-green-500' };
+    if (score <= 2) return { score, label: 'Fraca', color: 'bg-error' };
+    if (score <= 3) return { score, label: 'Média', color: 'bg-warning' };
+    return { score, label: 'Forte', color: 'bg-success' };
   };
 
   const passwordStrength = getPasswordStrength(formData.password);
 
-  // Navegação para login
+  // Navegação para login limpando o histórico
   const handleGoToLogin = () => {
-    navigation.navigate('Login');
+    navigation.dispatch(
+      CommonActions.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      })
+    );
   };
 
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <View className="min-h-screen flex-1 bg-black">
+      <View className="min-h-screen flex-1 bg-background">
         <ImageBackground
           source={require('../../../assets/bg-lucaflix.png')}
           className="flex-1"
@@ -249,28 +258,28 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
             <View className="mx-auto w-full max-w-lg">
               {/* LUCAFLIX Logo */}
               <View className="mb-8 items-center">
-                <Text className="mb-2 text-5xl font-bold tracking-wide text-red-600">LUCAFLIX</Text>
-                <View className="h-1 w-24 rounded-full bg-red-600" />
+                <Text className="mb-2 text-5xl font-bold tracking-wide text-primary">LUCAFLIX</Text>
+                <View className="h-1 w-24 rounded-full bg-primary" />
               </View>
 
               {/* Register Card */}
-              <View className="rounded-xl border border-gray-800 bg-black/80 p-8">
-                <Text className="mb-2 text-3xl font-bold text-white">Criar conta</Text>
-                <Text className="mb-8 text-gray-400">Junte-se à LUCAFLIX hoje mesmo</Text>
+              <View className="rounded-xl border border-border bg-overlay/90 p-8">
+                <Text className="mb-2 text-3xl font-bold text-text-primary">Criar conta</Text>
+                <Text className="mb-8 text-text-secondary">Junte-se à LUCAFLIX hoje mesmo</Text>
 
                 {/* Success Message */}
                 {successMessage && (
-                  <View className="mb-6 flex-row items-center rounded-lg border border-green-600/50 bg-green-900/30 p-4">
-                    <Icon name="check-circle" size={20} color="#10b981" />
-                    <Text className="ml-3 text-sm text-green-400">{successMessage}</Text>
+                  <View className="mb-6 flex-row items-center rounded-lg border border-success/50 bg-success/20 p-4">
+                    <Icon name="check-circle" size={20} color="#46D369" />
+                    <Text className="ml-3 text-sm text-success">{successMessage}</Text>
                   </View>
                 )}
 
                 {/* Error Message */}
                 {generalError && (
-                  <View className="mb-6 flex-row items-center rounded-lg border border-red-600/50 bg-red-900/30 p-4">
-                    <Icon name="error" size={20} color="#ef4444" />
-                    <Text className="ml-3 text-sm text-red-400">{generalError}</Text>
+                  <View className="mb-6 flex-row items-center rounded-lg border border-error/50 bg-error/20 p-4">
+                    <Icon name="error" size={20} color="#F40612" />
+                    <Text className="ml-3 text-sm text-error">{generalError}</Text>
                   </View>
                 )}
 
@@ -281,31 +290,31 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                     <View className="flex-1">
                       <TextInput
                         placeholder="Nome"
-                        placeholderTextColor="#9ca3af"
+                        placeholderTextColor="#7c869a"
                         value={formData.firstName}
                         onChangeText={(text) => updateFormData('firstName', text)}
-                        className={`rounded-lg border bg-gray-900/80 px-4 py-4 text-white ${
-                          errors.firstName ? 'border-red-500' : 'border-gray-700'
+                        className={`rounded-lg border bg-backgroundLight px-4 py-4 text-text-primary ${
+                          errors.firstName ? 'border-error' : 'border-border'
                         }`}
                         editable={!isLoading}
                       />
                       {errors.firstName && (
-                        <Text className="mt-1 text-sm text-red-400">{errors.firstName}</Text>
+                        <Text className="mt-1 text-sm text-error">{errors.firstName}</Text>
                       )}
                     </View>
                     <View className="flex-1">
                       <TextInput
                         placeholder="Sobrenome"
-                        placeholderTextColor="#9ca3af"
+                        placeholderTextColor="#7c869a"
                         value={formData.lastName}
                         onChangeText={(text) => updateFormData('lastName', text)}
-                        className={`rounded-lg border bg-gray-900/80 px-4 py-4 text-white ${
-                          errors.lastName ? 'border-red-500' : 'border-gray-700'
+                        className={`rounded-lg border bg-backgroundLight px-4 py-4 text-text-primary ${
+                          errors.lastName ? 'border-error' : 'border-border'
                         }`}
                         editable={!isLoading}
                       />
                       {errors.lastName && (
-                        <Text className="mt-1 text-sm text-red-400">{errors.lastName}</Text>
+                        <Text className="mt-1 text-sm text-error">{errors.lastName}</Text>
                       )}
                     </View>
                   </View>
@@ -314,18 +323,18 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                   <View className='m-2'>
                     <TextInput
                       placeholder="Endereço de email"
-                      placeholderTextColor="#9ca3af"
+                      placeholderTextColor="#7c869a"
                       value={formData.email}
                       onChangeText={(text) => updateFormData('email', text)}
-                      className={`rounded-lg border bg-gray-900/80 px-4 py-4 text-white ${
-                        errors.email ? 'border-red-500' : 'border-gray-700'
+                      className={`rounded-lg border bg-backgroundLight px-4 py-4 text-text-primary ${
+                        errors.email ? 'border-error' : 'border-border'
                       }`}
                       keyboardType="email-address"
                       autoCapitalize="none"
                       editable={!isLoading}
                     />
                     {errors.email && (
-                      <Text className="mt-1 text-sm text-red-400">{errors.email}</Text>
+                      <Text className="mt-1 text-sm text-error">{errors.email}</Text>
                     )}
                   </View>
 
@@ -334,11 +343,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                     <View className="relative">
                       <TextInput
                         placeholder="Senha"
-                        placeholderTextColor="#9ca3af"
+                        placeholderTextColor="#7c869a"
                         value={formData.password}
                         onChangeText={(text) => updateFormData('password', text)}
-                        className={`rounded-lg border bg-gray-900/80 px-4 py-4 pr-12 text-white ${
-                          errors.password ? 'border-red-500' : 'border-gray-700'
+                        className={`rounded-lg border bg-backgroundLight px-4 py-4 pr-12 text-text-primary ${
+                          errors.password ? 'border-error' : 'border-border'
                         }`}
                         secureTextEntry={!showPassword}
                         editable={!isLoading}
@@ -350,7 +359,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                         <Icon
                           name={showPassword ? 'visibility-off' : 'visibility'}
                           size={20}
-                          color="#9ca3af"
+                          color="#7c869a"
                         />
                       </TouchableOpacity>
                     </View>
@@ -359,19 +368,19 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                     {formData.password && (
                       <View className="mt-2">
                         <View className="flex-row items-center">
-                          <View className="mr-2 h-2 flex-1 rounded-full bg-gray-700">
+                          <View className="mr-2 h-2 flex-1 rounded-full bg-accent">
                             <View
                               className={`h-2 rounded-full ${passwordStrength.color}`}
                               style={{ width: `${(passwordStrength.score / 5) * 100}%` }}
                             />
                           </View>
-                          <Text className="text-sm text-gray-400">{passwordStrength.label}</Text>
+                          <Text className="text-sm text-text-muted">{passwordStrength.label}</Text>
                         </View>
                       </View>
                     )}
 
                     {errors.password && (
-                      <Text className="mt-1 text-sm text-red-400">{errors.password}</Text>
+                      <Text className="mt-1 text-sm text-error">{errors.password}</Text>
                     )}
                   </View>
 
@@ -380,11 +389,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                     <View className="relative">
                       <TextInput
                         placeholder="Confirmar senha"
-                        placeholderTextColor="#9ca3af"
+                        placeholderTextColor="#7c869a"
                         value={formData.confirmPassword}
                         onChangeText={(text) => updateFormData('confirmPassword', text)}
-                        className={`rounded-lg border bg-gray-900/80 px-4 py-4 pr-12 text-white ${
-                          errors.confirmPassword ? 'border-red-500' : 'border-gray-700'
+                        className={`rounded-lg border bg-backgroundLight px-4 py-4 pr-12 text-text-primary ${
+                          errors.confirmPassword ? 'border-error' : 'border-border'
                         }`}
                         secureTextEntry={!showConfirmPassword}
                         editable={!isLoading}
@@ -396,12 +405,12 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                         <Icon
                           name={showConfirmPassword ? 'visibility-off' : 'visibility'}
                           size={20}
-                          color="#9ca3af"
+                          color="#7c869a"
                         />
                       </TouchableOpacity>
                     </View>
                     {errors.confirmPassword && (
-                      <Text className="mt-1 text-sm text-red-400">{errors.confirmPassword}</Text>
+                      <Text className="mt-1 text-sm text-error">{errors.confirmPassword}</Text>
                     )}
                   </View>
 
@@ -413,17 +422,17 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                       disabled={isLoading}>
                       <View
                         className={`mr-3 mt-1 h-4 w-4 rounded border ${
-                          formData.acceptTerms ? 'border-red-600 bg-red-600' : 'border-gray-600'
+                          formData.acceptTerms ? 'border-primary bg-primary' : 'border-borderLight'
                         }`}>
                         {formData.acceptTerms && <Icon name="check" size={12} color="white" />}
                       </View>
-                      <Text className="flex-1 text-sm text-gray-300">
-                        Eu aceito os <Text className="text-red-500">Termos de Uso</Text> e a{' '}
-                        <Text className="text-red-500">Política de Privacidade</Text>.
+                      <Text className="flex-1 text-sm text-text-secondary">
+                        Eu aceito os <Text className="text-primary">Termos de Uso</Text> e a{' '}
+                        <Text className="text-primary">Política de Privacidade</Text>.
                       </Text>
                     </TouchableOpacity>
                     {errors.acceptTerms && (
-                      <Text className="text-sm text-red-400">{errors.acceptTerms}</Text>
+                      <Text className="text-sm text-error">{errors.acceptTerms}</Text>
                     )}
 
                     <TouchableOpacity
@@ -432,11 +441,11 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                       disabled={isLoading}>
                       <View
                         className={`mr-3 mt-1 h-4 w-4 rounded border ${
-                          formData.acceptMarketing ? 'border-red-600 bg-red-600' : 'border-gray-600'
+                          formData.acceptMarketing ? 'border-primary bg-primary' : 'border-borderLight'
                         }`}>
                         {formData.acceptMarketing && <Icon name="check" size={12} color="white" />}
                       </View>
-                      <Text className="flex-1 text-sm text-gray-300">
+                      <Text className="flex-1 text-sm text-text-secondary">
                         Gostaria de receber ofertas especiais e novidades da LUCAFLIX por email.
                       </Text>
                     </TouchableOpacity>
@@ -446,7 +455,7 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                   <TouchableOpacity
                     onPress={handleSubmit}
                     disabled={isLoading}
-                    className="w-full m-2 flex-row items-center justify-center rounded-lg bg-red-600 py-4"
+                    className="w-full m-2 flex-row items-center justify-center rounded-lg bg-primary py-4"
                     activeOpacity={0.8}>
                     {isLoading ? (
                       <>
@@ -461,17 +470,17 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
 
                 {/* Login Link */}
                 <View className="mt-8 items-center">
-                  <Text className="text-gray-400">
+                  <Text className="text-text-secondary">
                     Já tem uma conta?{' '}
-                    <Text className="font-medium text-white" onPress={handleGoToLogin}>
+                    <Text className="font-medium text-text-primary" onPress={handleGoToLogin}>
                       Entrar
                     </Text>
                   </Text>
                 </View>
 
                 {/* Benefits */}
-                <View className="mt-8 border-t border-gray-800 pt-6">
-                  <Text className="mb-4 text-center text-lg font-semibold text-white">
+                <View className="mt-8 border-t border-border pt-6">
+                  <Text className="mb-4 text-center text-lg font-semibold text-text-primary">
                     Por que escolher a LUCAFLIX?
                   </Text>
                   <View className="space-y-3">
@@ -481,19 +490,19 @@ const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister }) => {
                       'Totalmente grátis',
                     ].map((benefit, index) => (
                       <View key={index} className="flex-row items-center">
-                        <Icon name="check" size={16} color="#10b981" />
-                        <Text className="ml-3 text-sm text-gray-300">{benefit}</Text>
+                        <Icon name="check" size={16} color="#46D369" />
+                        <Text className="ml-3 text-sm text-text-secondary">{benefit}</Text>
                       </View>
                     ))}
                   </View>
                 </View>
 
                 {/* Additional Info */}
-                <View className="mt-8 border-t border-gray-800 pt-6">
-                  <Text className="text-center text-xs leading-relaxed text-gray-500">
+                <View className="mt-8 border-t border-border pt-6">
+                  <Text className="text-center text-xs leading-relaxed text-text-muted">
                     Este app é protegido e se aplicam a{' '}
-                    <Text className="text-red-500">Política de Privacidade</Text> e os{' '}
-                    <Text className="text-red-500">Termos de Uso</Text> da LUCAFLIX. Ao criar uma
+                    <Text className="text-primary">Política de Privacidade</Text> e os{' '}
+                    <Text className="text-primary">Termos de Uso</Text> da LUCAFLIX. Ao criar uma
                     conta você já aceita os termos de uso e a política de privacidade.
                   </Text>
                 </View>

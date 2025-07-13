@@ -9,12 +9,14 @@ interface AuthContextType {
   isLoading: boolean;
   isInitialized: boolean;
   user: UserResponse | null;
+  authError: string | null;
   login: (credentials: LoginRequest, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   register: (userData: RegisterRequest) => Promise<void>;
   checkAuth: () => Promise<void>;
   updateUser: (userData: UserResponse) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  clearAuthError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,24 +30,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [user, setUser] = useState<UserResponse | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Debug helper
   const logAuthState = useCallback((action: string) => {
     if (theme.development) {
-      console.log(`📊 Estado Auth atualizado: ${JSON.stringify({
+      console.log(`📊 Estado Auth atualizado [${action}]:`, {
         isAuthenticated,
         isInitialized,
         isLoading,
-        user: user ? user.username : 'Nenhum'
-      })}`);
+        user: user ? user.username : 'Nenhum',
+        hasError: !!authError
+      });
     }
-  }, [isAuthenticated, isInitialized, isLoading, user]);
+  }, [isAuthenticated, isInitialized, isLoading, user, authError]);
+
+  // Limpar erro de autenticação
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
 
   // Inicializar o contexto verificando se o usuário está autenticado
   useEffect(() => {
     const initializeAuth = async () => {
       try {
         setIsLoading(true);
+        setAuthError(null);
         
         if (theme.development) {
           console.log('🚀 Inicializando autenticação...');
@@ -80,6 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error('❌ Erro ao verificar autenticação:', error);
+        setAuthError('Erro ao verificar autenticação. Tente novamente.');
         await performLogout();
       } finally {
         setIsLoading(false);
@@ -105,6 +116,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Limpar estado local primeiro
       setIsAuthenticated(false);
       setUser(null);
+      setAuthError(null);
       
       // Depois limpar dados do AsyncStorage
       await authService.logout();
@@ -117,12 +129,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Mesmo com erro, limpar estado local
       setIsAuthenticated(false);
       setUser(null);
+      setAuthError(null);
     }
   };
 
   const login = async (credentials: LoginRequest, rememberMe: boolean = false): Promise<void> => {
     try {
       setIsLoading(true);
+      setAuthError(null);
       
       if (theme.development) {
         console.log('🔐 Fazendo login...');
@@ -137,8 +151,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Atualizar estado
       setUser(response.user);
       setIsAuthenticated(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro no login:', error);
+      
+      // Definir mensagem de erro mais específica
+      let errorMessage = 'Erro ao fazer login. Tente novamente.';
+      
+      if (error.message) {
+        if (error.message.includes('401') || error.message.includes('unauthorized')) {
+          errorMessage = 'Email/usuário ou senha incorretos.';
+        } else if (error.message.includes('network') || error.message.includes('Network')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet.';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'Tempo limite excedido. Tente novamente.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setAuthError(errorMessage);
       throw error;
     } finally {
       setIsLoading(false);
@@ -159,6 +190,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('❌ Erro no logout:', error);
+      setAuthError('Erro ao fazer logout. Tente novamente.');
       throw error;
     } finally {
       setIsLoading(false);
@@ -168,6 +200,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const register = async (userData: RegisterRequest): Promise<void> => {
     try {
       setIsLoading(true);
+      setAuthError(null);
       
       if (theme.development) {
         console.log('📝 Registrando usuário...');
@@ -179,8 +212,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('✅ Registro realizado com sucesso:', response.username);
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro no registro:', error);
+      
+      // Definir mensagem de erro mais específica
+      let errorMessage = 'Erro ao registrar usuário. Tente novamente.';
+      
+      if (error.message) {
+        if (error.message.includes('email') && error.message.includes('exists')) {
+          errorMessage = 'Este email já está em uso.';
+        } else if (error.message.includes('username') && error.message.includes('exists')) {
+          errorMessage = 'Este nome de usuário já está em uso.';
+        } else if (error.message.includes('validation')) {
+          errorMessage = 'Dados inválidos. Verifique as informações.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setAuthError(errorMessage);
       throw error;
     } finally {
       setIsLoading(false);
@@ -208,6 +258,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('❌ Erro ao verificar autenticação:', error);
+      setAuthError('Erro ao verificar autenticação.');
       await performLogout();
     }
   };
@@ -229,6 +280,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('❌ Erro ao atualizar usuário:', error);
+      setAuthError('Erro ao atualizar dados do usuário.');
       throw error;
     }
   };
@@ -244,8 +296,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (theme.development) {
         console.log('✅ Senha alterada com sucesso');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Erro ao alterar senha:', error);
+      
+      let errorMessage = 'Erro ao alterar senha. Tente novamente.';
+      
+      if (error.message) {
+        if (error.message.includes('current password')) {
+          errorMessage = 'Senha atual incorreta.';
+        } else if (error.message.includes('weak password')) {
+          errorMessage = 'A nova senha é muito fraca.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setAuthError(errorMessage);
       throw error;
     }
   };
@@ -255,12 +321,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     isInitialized,
     user,
+    authError,
     login,
     logout,
     register,
     checkAuth,
     updateUser,
     changePassword,
+    clearAuthError,
   };
 
   return (

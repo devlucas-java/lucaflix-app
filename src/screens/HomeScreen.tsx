@@ -25,7 +25,7 @@ import { FacaLogin } from '../components/FacaLogin';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeHeader } from '~/routes/headers/HomeHeader';
-import { Loading } from './Loading';
+import { BemVindoLoading } from '../components/loading/BemVindoLoading';
 import authService from '~/service/authService';
 
 // Hook para carregamento lazy
@@ -137,11 +137,16 @@ export const HomeScreen: React.FC = () => {
   const [heroLoading, setHeroLoading] = useState(true);
   const [contentLoading, setContentLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
-    setIsAuthenticated(authService.isAuthenticated());
-    loadInitialContent();
+    const initialize = async () => {
+      const auth = await authService.isAuthenticated(); // aguarda o resultado
+      setIsAuthenticated(auth);
+      await loadInitialContent(); // se essa também for async
+    };
+
+    initialize();
   }, []);
 
   const loadInitialContent = async () => {
@@ -204,10 +209,17 @@ export const HomeScreen: React.FC = () => {
 
         await new Promise((resolve) => setTimeout(resolve, 1200));
 
-        setRecommendations([...movieRecs.content, ...serieRecs.content]);
+        // Verificar se as recomendações existem e têm conteúdo
+        const movieRecommendations = movieRecs?.content || [];
+        const serieRecommendations = serieRecs?.content || [];
+
+        const allRecommendations = [...movieRecommendations, ...serieRecommendations];
+
+        console.log('Recomendações carregadas:', allRecommendations.length);
+        setRecommendations(allRecommendations);
       } catch (error) {
         console.error('Error loading recommendations:', error);
-        setIsAuthenticated(false);
+        setRecommendations([]);
       }
     }
   };
@@ -293,7 +305,7 @@ export const HomeScreen: React.FC = () => {
   }, [heroContent, navigation]);
 
   if (initialLoading) {
-    return <Loading />;
+    return <BemVindoLoading />;
   }
 
   return (
@@ -332,9 +344,9 @@ export const HomeScreen: React.FC = () => {
         )}
 
         <View className="relative z-10 -mt-32 pb-8">
-          {/* Conteúdo principal */}
+          {/* Top 10 Filmes */}
           <MovieRow
-            title=""
+            title="Top 10 Filmes"
             movies={top10Movies}
             onInfo={handleInfo}
             isTop10={true}
@@ -342,9 +354,11 @@ export const HomeScreen: React.FC = () => {
             loading={contentLoading}
             hasMore={false}
           />
-          if (isAuthenticated){
+
+          {/* Recomendações - só renderiza se o usuário estiver autenticado E houver recomendações */}
+          {isAuthenticated && recommendations.length > 0 && (
             <MovieRow
-              title="Recomendados"
+              title="Recomendados para Você"
               movies={recommendations}
               onInfo={handleInfo}
               isTop10={false}
@@ -352,16 +366,9 @@ export const HomeScreen: React.FC = () => {
               loading={contentLoading}
               hasMore={false}
             />
-          }
-          <MovieRow
-            title=""
-            movies={top10Movies}
-            onInfo={handleInfo}
-            isTop10={true}
-            isBigCard={false}
-            loading={contentLoading}
-            hasMore={false}
-          />
+          )}
+
+          {/* Top 10 Séries */}
           <MovieRow
             title="Top 10 Séries"
             movies={top10Series}
@@ -370,6 +377,7 @@ export const HomeScreen: React.FC = () => {
             loading={contentLoading}
             hasMore={false}
           />
+
           {/* Conteúdo lazy */}
           <LazyMovieRow
             title="Filmes Populares"
@@ -448,6 +456,8 @@ export const HomeScreen: React.FC = () => {
             globalLoading={contentLoading}
             loadingDelay={2500}
           />
+
+          {/* Componente de login para usuários não autenticados */}
           {!isAuthenticated && <FacaLogin />}
         </View>
       </ScrollView>

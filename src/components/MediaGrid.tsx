@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
+import React from 'react';
+import { View, Text, FlatList, TouchableOpacity, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { MovieCard } from '../components/MovieCard';
 import { 
@@ -26,18 +26,17 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   onMediaInfo,
   gridSize = 'medium'
 }) => {
-  const [loadingMore, setLoadingMore] = useState(false);
 
   const getGridConfig = () => {
-    const padding = 32; // 16px padding em cada lado
-    const spacing = 16; // espaçamento entre itens
+    const padding = 16; // Reduzido para ocupar mais largura
+    const spacing = 8; // Reduzido o espaçamento entre itens
     
     switch (gridSize) {
       case 'small':
         return { 
-          numColumns: 3, 
+          numColumns: 4, // Aumentado para 4 colunas
           cardSize: 'P' as const,
-          itemWidth: (screenWidth - padding - (spacing * 2)) / 3
+          itemWidth: (screenWidth - padding - (spacing * 3)) / 4
         };
       case 'large':
         return { 
@@ -58,11 +57,11 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
 
   const renderGridItem = ({ item, index }: { item: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO, index: number }) => (
     <View 
-      className="mb-4" 
+      className="mb-3" 
       style={{ 
         width: gridConfig.itemWidth,
-        marginLeft: index % gridConfig.numColumns === 0 ? 0 : 8,
-        marginRight: index % gridConfig.numColumns === gridConfig.numColumns - 1 ? 0 : 8,
+        marginLeft: index % gridConfig.numColumns === 0 ? 0 : 4,
+        marginRight: index % gridConfig.numColumns === gridConfig.numColumns - 1 ? 0 : 4,
       }}
     >
       <MovieCard
@@ -80,11 +79,11 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
       numColumns={gridConfig.numColumns}
       renderItem={({ index }) => (
         <View 
-          className="mb-4"
+          className="mb-3"
           style={{ 
             width: gridConfig.itemWidth,
-            marginLeft: index % gridConfig.numColumns === 0 ? 0 : 8,
-            marginRight: index % gridConfig.numColumns === gridConfig.numColumns - 1 ? 0 : 8,
+            marginLeft: index % gridConfig.numColumns === 0 ? 0 : 4,
+            marginRight: index % gridConfig.numColumns === gridConfig.numColumns - 1 ? 0 : 4,
           }}
         >
           <View 
@@ -98,7 +97,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
         </View>
       )}
       keyExtractor={(_, index) => `skeleton-${index}`}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16 }}
+      contentContainerStyle={{ paddingHorizontal: 8, paddingTop: 8 }}
       scrollEnabled={false}
     />
   );
@@ -128,10 +127,6 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
 
     return (
       <View className="items-center py-6 px-4">
-        <Text className="text-gray-400 text-sm mb-4">
-          Página {currentPage + 1} de {totalPages} • {data.totalElements} resultados
-        </Text>
-        
         <View className="flex-row items-center justify-center flex-wrap">
           {/* Botão Primeira Página */}
           {currentPage > 0 && (
@@ -212,21 +207,7 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
   };
 
   return (
-    <View className="flex-1 bg-black">
-      {/* Header com contador */}
-      {data && (
-        <View className="px-4 py-3 border-b border-gray-800">
-          <Text className="text-gray-400 text-sm">
-            {data.totalElements} {data.totalElements === 1 ? 'resultado' : 'resultados'}
-            {data.totalPages > 1 && (
-              <Text className="text-gray-500">
-                {' '}• Página {data.currentPage + 1} de {data.totalPages}
-              </Text>
-            )}
-          </Text>
-        </View>
-      )}
-
+    <View className="flex-1">
       {/* Conteúdo */}
       {loading && !data ? (
         renderLoadingSkeleton()
@@ -238,8 +219,8 @@ export const MediaGrid: React.FC<MediaGridProps> = ({
             renderItem={renderGridItem}
             keyExtractor={(item) => item.id.toString()}
             contentContainerStyle={{ 
-              paddingHorizontal: 16,
-              paddingTop: 16,
+              paddingHorizontal: 8,
+              paddingTop: 8,
               paddingBottom: 20
             }}
             showsVerticalScrollIndicator={false}
