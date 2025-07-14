@@ -5,293 +5,290 @@ import {
   Text,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
-  Dimensions,
-  FlatList,
-  Animated,
   StatusBar,
+  ActivityIndicator,
+  Animated,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useNavigation } from '@react-navigation/native';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { movieService } from '../service/movieService';
 import { SearchService } from '../service/searchService';
-import authService from '../service/authService';
-import type {
+import {
   MovieSimpleDTO,
-  MovieCompleteDTO,
+  MediaComplete,
+  MediaSimple,
+  Categoria,
   PaginatedResponseDTO,
   SerieSimpleDTO,
   AnimeSimpleDTO,
-  MediaComplete,
-  MediaSimple,
+  MovieCompleteDTO,
 } from '../types/mediaTypes';
-import { Categoria } from '../types/mediaTypes';
 import { HeroSection } from '../components/HeroSection';
 import { MovieRow } from '../components/MovieRow';
 import { MediaGrid } from '../components/MediaGrid';
+import { loadMediaById } from '../utils/mediaService';
 import { FacaLogin } from '../components/FacaLogin';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { HomeHeader } from '~/routes/headers/HomeHeader';
-import { getMediaType } from '../utils/mediaService';
+import { BemVindoLoading } from '../components/loading/BemVindoLoading';
+import authService from '~/service/authService';
+import { LazyMovieRow } from '~/components/loading/LazyMovieRow';
+import { BollLoading } from '~/components/loading/BollLoading';
+import { MediaInfinity } from '~/components/MediaInfinity';
 
-const { height: screenHeight } = Dimensions.get('window');
 const searchService = new SearchService();
 
-// Tipos para navegação
 type RootStackParamList = {
   Home: undefined;
   MediaScreen: {
     media: MediaComplete;
-    onBack?: () => void;
   };
 };
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Hook para Intersection Observer alternativo no React Native
-const useScrollObserver = (callback: () => void, threshold: number = 0.8) => {
-  const ref = useRef<View>(null);
-  
-  const handleLayout = useCallback((event: any) => {
-    const { y } = event.nativeEvent.layout;
-    if (y < screenHeight * threshold) {
-      callback();
-    }
-  }, [callback, threshold]);
-
-  return { ref, handleLayout };
-};
-
 export const MoviesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  // Estados do hero
-  const [heroContent, setHeroContent] = useState<MovieCompleteDTO | null>(null);
-  const [heroLoading, setHeroLoading] = useState(true);
+  // Estados principais
+  const [heroContent, setHeroContent] = useState<MediaComplete | null>(null);
+  const [recommendations, setRecommendations] = useState<MediaSimple[]>([]);
+  const [top10Movies, setTop10Movies] = useState<MovieSimpleDTO[]>([]);
 
-  // Estados para as rows de filmes
-  const [popularMovies, setPopularMovies] = useState<MovieSimpleDTO[]>([]);
-  const [newReleases, setNewReleases] = useState<MovieSimpleDTO[]>([]);
-  const [highRatedMovies, setHighRatedMovies] = useState<MovieSimpleDTO[]>([]);
-  const [actionMovies, setActionMovies] = useState<MovieSimpleDTO[]>([]);
-
-  // Estados para o MediaGrid 
-  const [gridData, setGridData] = useState<PaginatedResponseDTO<MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO> | null>(null);
-
-// Estados de controle
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [totalMovies, setTotalMovies] = useState<number>(0);
-  const [refreshing, setRefreshing] = useState(false);
+  // Estados do MediaGrid
+  const [gridData, setGridData] = useState<PaginatedResponseDTO<
+    MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO
+  > | null>(null);
+  const [gridLoaded, setGridLoaded] = useState(false);
   const [gridLoading, setGridLoading] = useState(false);
+  const [gridLoadingMore, setGridLoadingMore] = useState(false);
+  const [totalMovies, setTotalMovies] = useState<number>(0);
+  const [allGridItems, setAllGridItems] = useState<(SerieSimpleDTO | AnimeSimpleDTO | MovieCompleteDTO)[]>([]);
+  const [hasMoreGridPages, setHasMoreGridPages] = useState(true);
+  const [currentGridPage, setCurrentGridPage] = useState(0);
 
-  // Estados para controle de carregamento por seção
-  const [loadedSections, setLoadedSections] = useState({
-    hero: false,
-    popularMovies: false,
-    newReleases: false,
-    highRatedMovies: false,
-    actionMovies: false,
-    grid: false,
-    totalCount: false,
-  });
-
-  const [loadingSections, setLoadingSections] = useState({
-    popularMovies: false,
-    newReleases: false,
-    highRatedMovies: false,
-    actionMovies: false,
-    grid: false,
-    totalCount: false,
-  });
+  // Estados de loading
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [heroLoading, setHeroLoading] = useState(true);
+  const [contentLoading, setContentLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
 
   useEffect(() => {
     const initialize = async () => {
-      // Verificar autenticação
       const auth = await authService.isAuthenticated();
       setIsAuthenticated(auth);
-      
-      // Carregar apenas o hero primeiro
-      await loadHeroContent();
+      await loadInitialContent();
     };
 
     initialize();
   }, []);
 
-  // Carrega apenas o hero primeiro
+  const loadInitialContent = async () => {
+    try {
+      setInitialLoading(true);
+      setHeroLoading(true);
+      setContentLoading(true);
+
+      await loadHeroContent();
+      setHeroLoading(false);
+
+      await Promise.all([loadTop10Movies(), loadAuthenticatedContent()]);
+
+      setContentLoading(false);
+    } catch (error) {
+      console.error('Error loading content:', error);
+      setHeroLoading(false);
+      setContentLoading(false);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
   const loadHeroContent = async () => {
     try {
-      setHeroLoading(true);
-      const randomId = Math.floor(Math.random() * 100) + 1;
-
-      try {
-        const movieData = await movieService.getMovieById(randomId);
-        setHeroContent(movieData);
-        setLoadedSections(prev => ({ ...prev, hero: true }));
-      } catch (error) {
-        try {
-          const popularData = await movieService.getPopularMovies(0, 1);
-          if (popularData.content.length > 0) {
-            const firstMovie = popularData.content[0];
-            const completeMovie = await movieService.getMovieById(firstMovie.id);
-            setHeroContent(completeMovie);
-            setLoadedSections(prev => ({ ...prev, hero: true }));
-          }
-        } catch (fallbackError) {
-          console.error('Error loading hero content:', fallbackError);
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      const randomId = Math.floor(Math.random() * (120 - 40 + 1)) + 40;
+      const result = await loadMediaById(randomId);
+      if (result && result.type === 'movie') {
+        setHeroContent(result.media);
+      } else {
+        // Fallback para buscar um filme específico
+        const popularMovies = await movieService.getPopularMovies(0, 1);
+        if (popularMovies.content.length > 0) {
+          const movieComplete = await movieService.getMovieById(popularMovies.content[0].id);
+          setHeroContent(movieComplete);
         }
       }
     } catch (error) {
-      console.error('Error loading hero content:', error);
-    } finally {
-      setHeroLoading(false);
+      console.error('Error loading hero:', error);
     }
   };
 
-  const loadPopularMovies = async () => {
-    if (loadedSections.popularMovies || loadingSections.popularMovies) return;
-    
+  const loadTop10Movies = async () => {
     try {
-      setLoadingSections(prev => ({ ...prev, popularMovies: true }));
-      const popularMoviesData = await movieService.getPopularMovies(0, 12);
-      setPopularMovies(popularMoviesData.content);
-      setLoadedSections(prev => ({ ...prev, popularMovies: true }));
+      const moviesData = await movieService.getTop10MostLiked();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setTop10Movies(moviesData);
     } catch (error) {
-      console.error('Error loading popular movies:', error);
-    } finally {
-      setLoadingSections(prev => ({ ...prev, popularMovies: false }));
+      console.error('Error loading top 10 movies:', error);
     }
   };
 
-  const loadNewReleases = async () => {
-    if (loadedSections.newReleases || loadingSections.newReleases) return;
-    
+  const loadAuthenticatedContent = async () => {
+    if (isAuthenticated) {
+      try {
+        const movieRecs = await movieService.getRecommendations(0, 10);
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        const movieRecommendations = movieRecs?.content || [];
+        console.log('Recomendações de filmes carregadas:', movieRecommendations.length);
+        setRecommendations(movieRecommendations);
+      } catch (error) {
+        console.error('Error loading movie recommendations:', error);
+        setRecommendations([]);
+      }
+    }
+  };
+
+  // Carrega mais itens para o grid (infinite scroll)
+  const loadMoreGridData = async () => {
+    if (gridLoadingMore || !hasMoreGridPages) return;
+
     try {
-      setLoadingSections(prev => ({ ...prev, newReleases: true }));
-      const newReleasesData = await movieService.getNewReleases(0, 12);
-      setNewReleases(newReleasesData.content);
-      setLoadedSections(prev => ({ ...prev, newReleases: true }));
+      setGridLoadingMore(true);
+
+      const nextPage = currentGridPage + 1;
+      console.log('Loading more grid data for page:', nextPage);
+
+      const response = await searchService.searchSeries(undefined, undefined, nextPage, 20);
+
+      // Adiciona novos itens ao array existente
+      setAllGridItems((prevItems) => [...prevItems, ...response.content]);
+      setGridData(response);
+      setCurrentGridPage(response.currentPage);
+      setHasMoreGridPages(response.currentPage < response.totalPages - 1);
+
+      console.log('More grid data loaded successfully');
     } catch (error) {
-      console.error('Error loading new releases:', error);
+      console.error('Error loading more grid data:', error);
     } finally {
-      setLoadingSections(prev => ({ ...prev, newReleases: false }));
+      setGridLoadingMore(false);
     }
   };
 
-  const loadHighRatedMovies = async () => {
-    if (loadedSections.highRatedMovies || loadingSections.highRatedMovies) return;
-    
-    try {
-      setLoadingSections(prev => ({ ...prev, highRatedMovies: true }));
-      const highRatedMoviesData = await movieService.getHighRatedMovies(0, 12);
-      setHighRatedMovies(highRatedMoviesData.content);
-      setLoadedSections(prev => ({ ...prev, highRatedMovies: true }));
-    } catch (error) {
-      console.error('Error loading high rated movies:', error);
-    } finally {
-      setLoadingSections(prev => ({ ...prev, highRatedMovies: false }));
-    }
-  };
-
-  const loadActionMovies = async () => {
-    if (loadedSections.actionMovies || loadingSections.actionMovies) return;
-    
-    try {
-      setLoadingSections(prev => ({ ...prev, actionMovies: true }));
-      const actionMoviesData = await movieService
-        .getMoviesByCategory(Categoria.ACAO, 0, 12)
-        .catch(() => ({ content: [] }));
-      
-      setActionMovies(actionMoviesData.content);
-      setLoadedSections(prev => ({ ...prev, actionMovies: true }));
-    } catch (error) {
-      console.error('Error loading action movies:', error);
-    } finally {
-      setLoadingSections(prev => ({ ...prev, actionMovies: false }));
-    }
-  };
-
+  // Função para carregar o MediaGrid
   const loadGridContent = async (page: number = 0) => {
-    if (page === 0 && (loadedSections.grid || loadingSections.grid)) return;
-    
+    if (page === 0 && gridLoaded) return;
+
     try {
       setGridLoading(true);
-      if (page === 0) {
-        setLoadingSections(prev => ({ ...prev, grid: true }));
-      }
 
       const searchData = await searchService.searchMovies(
         undefined,
         undefined,
         page,
-        12
+        18 // Aumentando para 18 itens por página
       );
 
       setGridData(searchData);
+      setTotalMovies(searchData.totalElements || 0);
+
       if (page === 0) {
-        setLoadedSections(prev => ({ ...prev, grid: true }));
+        setGridLoaded(true);
       }
     } catch (error) {
       console.error('Error loading grid content:', error);
     } finally {
       setGridLoading(false);
-      if (page === 0) {
-        setLoadingSections(prev => ({ ...prev, grid: false }));
-      }
     }
   };
 
-  const loadTotalMovies = async () => {
-    if (loadedSections.totalCount || loadingSections.totalCount) return;
-    
+  // Carregar o grid quando o conteúdo principal terminar de carregar
+  useEffect(() => {
+    if (!contentLoading && !initialLoading) {
+      // Delay para carregar o grid após todos os componentes
+      const timer = setTimeout(() => {
+        loadGridContent(0);
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [contentLoading, initialLoading]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setGridLoaded(false);
+    setGridData(null);
     try {
-      setLoadingSections(prev => ({ ...prev, totalCount: true }));
-      
-      const totalData = await searchService.searchMovies(
-        undefined,
-        undefined,
-        0,
-        1
-      );
-      
-      setTotalMovies(totalData.totalElements || 0);
-      setLoadedSections(prev => ({ ...prev, totalCount: true }));
-    } catch (error) {
-      console.error('Error loading total movies count:', error);
+      await loadInitialContent();
     } finally {
-      setLoadingSections(prev => ({ ...prev, totalCount: false }));
+      setRefreshing(false);
     }
-  };
+  }, []);
 
-  // Observers para lazy loading
-  const popularObserver = useScrollObserver(loadPopularMovies);
-  const newReleasesObserver = useScrollObserver(loadNewReleases);
-  const highRatedObserver = useScrollObserver(loadHighRatedMovies);
-  const actionObserver = useScrollObserver(loadActionMovies);
-  const gridObserver = useScrollObserver(() => loadGridContent(0));
-  const totalObserver = useScrollObserver(loadTotalMovies);
+  // Funções de carregamento lazy - apenas para filmes
+  const loadDataFunctions = {
+    popularMovies: () => movieService.getPopularMovies(0, 12).then((data) => data.content),
+    newReleases: () => movieService.getNewReleases(0, 12).then((data) => data.content),
+    topRatedMovies: () => movieService.getHighRatedMovies(0, 12).then((data) => data.content),
+    actionMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.ACAO, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    comedyMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.COMEDIA, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    dramaMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.DRAMA, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    horrorMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.SUSPENSE, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    fantasyMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.FANTASIA, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    sciFiMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.FICCAO_CIENTIFICA, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    animationMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.ANIMACAO, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    romanceMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.ROMANCE, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+    thrillerMovies: () =>
+      movieService
+        .getMoviesByCategory(Categoria.ACAO, 0, 12)
+        .then((data) => data.content)
+        .catch(() => []),
+  };
 
   // Função otimizada para lidar com o clique na mídia
   const handleInfo = useCallback(
     async (media: MediaSimple) => {
       try {
-        const mediaType = getMediaType(media);
-        let completeMedia: MediaComplete;
-
-        if (mediaType === 'movie') {
-          completeMedia = await movieService.getMovieById(media.id);
-        } else if (mediaType === 'serie') {
-          // Se for série, usar serieService quando disponível
-          completeMedia = await movieService.getMovieById(media.id);
-        } else {
-          completeMedia = await movieService.getMovieById(media.id);
-        }
-
+        const completeMedia = await movieService.getMovieById(media.id);
         navigation.navigate('MediaScreen', {
           media: completeMedia,
         });
       } catch (error) {
-        console.error('Error loading media details:', error);
+        console.error('Error loading movie details:', error);
       }
     },
     [navigation]
@@ -303,223 +300,195 @@ export const MoviesScreen: React.FC = () => {
     }
   }, [heroContent, navigation]);
 
-  const handleGridPageChange = useCallback((page: number) => {
-    loadGridContent(page);
-  }, []);
-
-  const handleGridMediaInfo = useCallback((
-    media: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO
-  ) => {
-    handleInfo(media);
-  }, [handleInfo]);
-
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    
-    // Reset loaded sections
-    setLoadedSections({
-      hero: false,
-      popularMovies: false,
-      newReleases: false,
-      highRatedMovies: false,
-      actionMovies: false,
-      grid: false,
-      totalCount: false,
-    });
-
-    // Reload hero content
-    await loadHeroContent();
-    
-    setRefreshing(false);
-  }, []);
-
-  // Skeleton components
-  const RowSkeleton = () => (
-    <View className="px-4 mb-6">
-      <View className="h-5 bg-gray-700 rounded w-32 mb-3" />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {Array(4).fill(0).map((_, i) => (
-          <View key={i} className="w-32 h-48 bg-gray-700 rounded mr-3" />
-        ))}
-      </ScrollView>
-    </View>
+  const handleGridMediaInfo = useCallback(
+    (media: MovieSimpleDTO | SerieSimpleDTO | AnimeSimpleDTO) => {
+      handleInfo(media);
+    },
+    [handleInfo]
   );
 
-  const GridSkeleton = () => (
-    <View className="px-4">
-      <View className="h-6 bg-gray-700 rounded w-48 mb-4" />
-      <FlatList
-        data={Array(12).fill(0)}
-        numColumns={3}
-        renderItem={({ index }) => (
-          <View 
-            className="flex-1 aspect-[2/3] bg-gray-700 rounded m-1"
-            key={index}
-          />
-        )}
-        scrollEnabled={false}
-      />
-    </View>
-  );
-
-  // Loading principal apenas para o hero
-  if (heroLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-background">
-        <StatusBar barStyle="light-content" backgroundColor="#000000" />
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#e50914" />
-          <Text className="text-text-secondary mt-4">Carregando...</Text>
-        </View>
-      </SafeAreaView>
-    );
+  if (initialLoading) {
+    return <BollLoading />;
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <SafeAreaView className="flex-1 bg-black">
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
-      
+
       <HomeHeader navigation={navigation} scrollY={scrollY} />
 
+      {/* Indicador de Seção - FILMES
+      <View className="top-30 absolute right-4 z-50">
+        <View className="rounded-full bg-red-600 px-3 py-1">
+          <Text className="text-sm font-bold text-white">FILMES</Text>
+        </View>
+      </View> */}
+
       <ScrollView
+        className="flex-1"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={['#e50914']}
-            tintColor="#e50914"
+            onRefresh={onRefresh}
+            tintColor="#E50914"
+            colors={['#E50914']}
+            title="Atualizando filmes..."
+            titleColor="#fff"
           />
         }
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
-        scrollEventThrottle={16}
-      >
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+          useNativeDriver: false,
+        })}
+        scrollEventThrottle={16}>
         {/* Hero Section */}
-        {heroContent && loadedSections.hero && (
-          <HeroSection
-            media={heroContent}
-            useH1={true}
-            onInfo={handleHeroInfo}
-          />
+        {heroLoading ? (
+          <View className="h-96 items-center justify-center bg-gray-900">
+            <ActivityIndicator size="large" color="#E50914" />
+            <Text className="mt-4 text-base text-white">Carregando filme em destaque...</Text>
+          </View>
+        ) : (
+          heroContent && (
+            <HeroSection media={heroContent} onInfo={handleHeroInfo} loading={heroLoading} />
+          )
         )}
 
-        {/* Content Rows */}
         <View className="relative z-10 -mt-32 pb-8">
-          {/* Row 1: Filmes Populares */}
-          <View 
-            ref={popularObserver.ref}
-            onLayout={popularObserver.handleLayout}
-          >
-            {loadedSections.popularMovies && popularMovies.length > 0 ? (
-              <MovieRow
-                title=""
-                movies={popularMovies}
-                onInfo={handleInfo}
-                loading={loadingSections.popularMovies}
-              />
-            ) : loadingSections.popularMovies ? (
-              <RowSkeleton />
-            ) : (
-              <View className="h-4" />
-            )}
-          </View>
+          {/* Top 10 Filmes */}
+          <MovieRow
+            title=""
+            movies={top10Movies}
+            onInfo={handleInfo}
+            isTop10={true}
+            isBigCard={false}
+            loading={contentLoading}
+            hasMore={false}
+          />
 
-          {/* Row 2: Novos Lançamentos */}
-          <View 
-            ref={newReleasesObserver.ref}
-            onLayout={newReleasesObserver.handleLayout}
-          >
-            {loadedSections.newReleases && newReleases.length > 0 ? (
-              <MovieRow
-                title="Novos Lançamentos"
-                movies={newReleases}
-                onInfo={handleInfo}
-                loading={loadingSections.newReleases}
-              />
-            ) : loadingSections.newReleases ? (
-              <RowSkeleton />
-            ) : (
-              <View className="h-4" />
-            )}
-          </View>
+          {/* Recomendações de Filmes - só renderiza se o usuário estiver autenticado E houver recomendações */}
+          {isAuthenticated && recommendations.length > 0 && (
+            <MovieRow
+              title="Filmes Recomendados para Você"
+              movies={recommendations}
+              onInfo={handleInfo}
+              isTop10={false}
+              isBigCard={false}
+              loading={contentLoading}
+              hasMore={false}
+            />
+          )}
 
-          {/* Row 3: Filmes Bem Avaliados */}
-          <View 
-            ref={highRatedObserver.ref}
-            onLayout={highRatedObserver.handleLayout}
-          >
-            {loadedSections.highRatedMovies && highRatedMovies.length > 0 ? (
-              <MovieRow
-                title="Filmes Bem Avaliados"
-                movies={highRatedMovies}
-                onInfo={handleInfo}
-                loading={loadingSections.highRatedMovies}
-              />
-            ) : loadingSections.highRatedMovies ? (
-              <RowSkeleton />
-            ) : (
-              <View className="h-4" />
-            )}
-          </View>
+          {/* Conteúdo lazy - apenas filmes */}
+          <LazyMovieRow
+            title="Filmes Populares"
+            loadData={loadDataFunctions.popularMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={500}
+          />
+          <LazyMovieRow
+            title="Novos Lançamentos"
+            loadData={loadDataFunctions.newReleases}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={700}
+          />
+          <LazyMovieRow
+            title="Filmes Bem Avaliados"
+            loadData={loadDataFunctions.topRatedMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={900}
+          />
+          <LazyMovieRow
+            title="Filmes de Ação"
+            loadData={loadDataFunctions.actionMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={1100}
+          />
+          <LazyMovieRow
+            title="Filmes de Comédia"
+            loadData={loadDataFunctions.comedyMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={1300}
+          />
+          <LazyMovieRow
+            title="Filmes de Drama"
+            loadData={loadDataFunctions.dramaMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={1500}
+          />
+          <LazyMovieRow
+            title="Filmes de Terror"
+            loadData={loadDataFunctions.horrorMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={1700}
+          />
+          <LazyMovieRow
+            title="Filmes de Fantasia"
+            loadData={loadDataFunctions.fantasyMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={1900}
+          />
+          <LazyMovieRow
+            title="Ficção Científica"
+            loadData={loadDataFunctions.sciFiMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={2100}
+          />
+          <LazyMovieRow
+            title="Filmes de Animação"
+            loadData={loadDataFunctions.animationMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={2300}
+          />
+          <LazyMovieRow
+            title="Filmes de Romance"
+            loadData={loadDataFunctions.romanceMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={2500}
+          />
+          <LazyMovieRow
+            title="Filmes de Thriller"
+            loadData={loadDataFunctions.thrillerMovies}
+            onInfo={handleInfo}
+            globalLoading={contentLoading}
+            loadingDelay={2700}
+          />
 
-          {/* Row 4: Filmes de Ação */}
-          <View 
-            ref={actionObserver.ref}
-            onLayout={actionObserver.handleLayout}
-          >
-            {loadedSections.actionMovies && actionMovies.length > 0 ? (
-              <MovieRow
-                title="Filmes de Ação"
-                movies={actionMovies}
-                onInfo={handleInfo}
-                loading={loadingSections.actionMovies}
-              />
-            ) : loadingSections.actionMovies ? (
-              <RowSkeleton />
-            ) : (
-              <View className="h-4" />
-            )}
-          </View>
+          {/* MediaGrid Section - Largura total da tela */}
 
-          {/* MediaGrid Section */}
-          <View 
-            ref={gridObserver.ref}
-            onLayout={gridObserver.handleLayout}
-            className="px-4 mt-8"
-          >
-            <View className="mb-6">
-              <Text className="text-2xl font-bold text-text-primary mb-2">
-                Explorar Todos os Filmes
-              </Text>
-              <Text className="text-text-secondary">
-                Navegue por nossa coleção completa de filmes
+          {/* MediaGrid Section com Infinite Scroll */}
+          <View className="mt-8">
+            <View className="mb-6 px-4">
+              <Text className="mb-2 text-2xl font-bold text-white">Explorar Todas as Séries</Text>
+              <Text className="text-base text-gray-400">
+                {totalMovies > 0
+                  ? `${totalMovies} séries disponíveis`
+                  : 'Navegue por nossa coleção completa'}
               </Text>
             </View>
 
-            {loadedSections.grid ? (
-              <MediaGrid
-                data={gridData}
-                loading={gridLoading}
-                onPageChange={handleGridPageChange}
-                onMediaInfo={handleGridMediaInfo}
-                gridSize="medium"
-              />
-            ) : loadingSections.grid ? (
-              <GridSkeleton />
-            ) : (
-              <View className="h-64 items-center justify-center">
-                <Icon name="expand-more" size={48} color="#7c869a" />
-                <Text className="text-text-muted mt-4 text-center">
-                  Role para baixo para carregar mais conteúdo
-                </Text>
-              </View>
-            )}
+            {/* MediaGrid com infinite scroll */}
+            <MediaInfinity
+              data={gridData}
+              loading={gridLoading}
+              loadingMore={gridLoadingMore}
+              allItems={allGridItems}
+              onLoadMore={loadMoreGridData}
+              onMediaInfo={handleGridMediaInfo}
+              gridSize="medium"
+            />
           </View>
-
-          {/* Aviso para usuários não logados */}
+          {/* Componente de login para usuários não autenticados */}
           {!isAuthenticated && <FacaLogin />}
         </View>
       </ScrollView>

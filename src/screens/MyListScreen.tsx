@@ -29,6 +29,7 @@ import type {
   MediaSimple,
   PaginatedResponseDTO,
 } from '../types/mediaTypes';
+import { BollLoading } from '~/components/loading/BollLoading';
 
 type FilterType = 'ALL' | 'MOVIE' | 'SERIE' | 'ANIME';
 
@@ -209,36 +210,37 @@ export const MyListScreen: React.FC<MyListScreenProps> = ({ navigation, route })
     ];
 
     return (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        className=""
-        contentContainerStyle={{ paddingHorizontal: 16 }}
-      >
-        <View className="flex-row h-14 space-x-3">
-          {filters.map(({ type, label, icon, iconLibrary, count }) => (
-            <TouchableOpacity
-              key={type}
-              onPress={() => handleFilterChange(type)}
-              className={`flex-row items-center space-x-2 px-4 py-2 rounded-full ${
-                activeFilter === type
-                  ? 'bg-red-600'
-                  : 'bg-gray-800'
-              }`}
-            >
-              {renderIcon(icon, iconLibrary, 16, 'white')}
-              <Text className="text-white font-medium">{label}</Text>
-              <View
-                className={`px-2 py-1 rounded-full ${
-                  activeFilter === type ? 'bg-red-700' : 'bg-gray-700'
+      <View className="h-12 mb-2">
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+        >
+          <View className="flex-row h-full space-x-3">
+            {filters.map(({ type, label, icon, iconLibrary, count }) => (
+              <TouchableOpacity
+                key={type}
+                onPress={() => handleFilterChange(type)}
+                className={`flex-row items-center space-x-2 px-3 py-1.5 rounded-full ${
+                  activeFilter === type
+                    ? 'bg-red-600'
+                    : 'bg-gray-800'
                 }`}
               >
-                <Text className="text-white text-xs">{count}</Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
+                {renderIcon(icon, iconLibrary, 14, 'white')}
+                <Text className="text-white font-medium text-sm">{label}</Text>
+                <View
+                  className={`px-1.5 py-0.5 rounded-full ${
+                    activeFilter === type ? 'bg-red-700' : 'bg-gray-700'
+                  }`}
+                >
+                  <Text className="text-white text-xs">{count}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
     );
   };
 
@@ -251,34 +253,18 @@ export const MyListScreen: React.FC<MyListScreenProps> = ({ navigation, route })
     ];
 
     return (
-      <View className="flex-row justify-between mb-6 px-4">
+      <View className="flex-row h-16 justify-between mb-4 px-4">
         {stats.map((stat, index) => (
-          <View key={index} className="bg-gray-900 rounded-lg p-4 flex-1 mx-1 border border-gray-800">
-            <Text className={`text-2xl font-bold text-center ${stat.color}`}>
+          <View key={index} className="bg-gray-900 rounded-lg p-3 flex-1 mx-1 border border-gray-800">
+            <Text className={`text-xl font-bold text-center ${stat.color}`}>
               {stat.value}
             </Text>
-            <Text className="text-sm text-gray-400 text-center">{stat.label}</Text>
+            <Text className="text-xs text-gray-400 text-center">{stat.label}</Text>
           </View>
         ))}
       </View>
     );
   };
-
-  const renderLoadingScreen = () => (
-    <View className="flex-1 bg-black">
-      <View className="flex-1 px-4 pt-8">
-        <View className="flex-row items-center mb-8">
-          <Ionicons name="heart" size={32} color="#EF4444" />
-          <Text className="text-white text-2xl font-bold ml-3">Minha Lista</Text>
-        </View>
-        
-        <View className="flex-row justify-center items-center flex-1">
-          <ActivityIndicator size="large" color="#EF4444" />
-          <Text className="text-white ml-3">Carregando sua lista...</Text>
-        </View>
-      </View>
-    </View>
-  );
 
   const renderEmptyState = () => {
     const sectionTitle = activeFilter === 'MOVIE' ? 'Filmes' : 
@@ -302,7 +288,7 @@ export const MyListScreen: React.FC<MyListScreenProps> = ({ navigation, route })
   };
 
   if (loading) {
-    return renderLoadingScreen();
+    return <BollLoading />;
   }
 
   const currentPageData = getCurrentPageData();
@@ -310,17 +296,17 @@ export const MyListScreen: React.FC<MyListScreenProps> = ({ navigation, route })
   return (
     <View className="flex-1 bg-black">
 
-      <View className='h-18' />
+      <View className='h-20' />
 
       {/* Header */}
-      <View className="px-4 pt-4 pb-4">
-        <View className="flex-row items-center justify-between mb-4">
+      <View className="px-4 pt-4 pb-2">
+        <View className="flex-row items-center justify-between mb-3">
           <View>
             <View className="flex-row items-center">
-              <Ionicons name="heart" size={32} color="#EF4444" />
-              <Text className="text-white text-3xl font-bold ml-3">Minha Lista</Text>
+              <Ionicons name="heart" size={28} color="#EF4444" />
+              <Text className="text-white text-2xl font-bold ml-3">Minha Lista</Text>
             </View>
-            <Text className="text-gray-400 mt-1 ml-11">
+            <Text className="text-gray-400 mt-1 ml-9 text-sm">
               Seus filmes, séries e animes favoritos
             </Text>
           </View>
@@ -333,18 +319,20 @@ export const MyListScreen: React.FC<MyListScreenProps> = ({ navigation, route })
       {/* Botões de Filtro */}
       {renderFilterButtons()}
 
-      {/* Conteúdo */}
-      {currentPageData.content.length > 0 ? (
-        <MediaGrid
-          data={currentPageData}
-          loading={false}
-          onPageChange={handlePageChange}
-          onMediaInfo={handleMediaPress}
-          gridSize="small" // Para garantir 3 colunas
-        />
-      ) : (
-        renderEmptyState()
-      )}
+      {/* Conteúdo - Maximiza o espaço disponível */}
+      <View className="flex-1">
+        {currentPageData.content.length > 0 ? (
+          <MediaGrid
+            data={currentPageData}
+            loading={false}
+            onPageChange={handlePageChange}
+            onMediaInfo={handleMediaPress}
+            gridSize="small" // Para garantir 3 colunas
+          />
+        ) : (
+          renderEmptyState()
+        )}
+      </View>
 
       {/* Loading da mídia */}
       {mediaLoading && (

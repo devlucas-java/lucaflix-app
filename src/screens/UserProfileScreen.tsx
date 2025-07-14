@@ -269,7 +269,7 @@ const UserProfileScreen: React.FC = () => {
       <ProfileHeader
         navigation={navigation}
         scrollY={scrollY}
-        title="Meu Perfil"
+        title={user.username}
         onSettings={handleSettings}
         onNotifications={handleNotifications}
       />
@@ -289,11 +289,6 @@ const UserProfileScreen: React.FC = () => {
 
         {/* Conteúdo principal */}
         <View className="px-6 pt-4">
-          {/* Título e subtítulo */}
-          <View className="mb-6">
-            <Text className="text-white text-3xl font-bold">Meu Perfil</Text>
-            <Text className="text-gray-400 text-base mt-1">Gerencie sua conta</Text>
-          </View>
 
           {/* Mensagens */}
           {error ? (

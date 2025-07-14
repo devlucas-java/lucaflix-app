@@ -7,6 +7,7 @@ import {
   Dimensions,
   Alert,
   ImageBackground,
+  StatusBar,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -35,7 +36,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
   const [isInMyList, setIsInMyList] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [videoError, setVideoError] = useState(false);
-  const [showVideo, setShowVideo] = useState(true);
+  const [showVideo, setShowVideo] = useState(true); // Iniciando com true para mostrar o trailer
   const [imageError, setImageError] = useState(false);
   const [fallbackImageError, setFallbackImageError] = useState(false);
   const [backdropError, setBackdropError] = useState(false);
@@ -91,9 +92,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   const videoId = media.trailer ? getYouTubeVideoId(media.trailer) : null;
 
+  // URL do YouTube com som sempre ativo
   const youtubeURL = videoId
-    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0
-      }&controls=0&loop=1&playlist=${videoId}&modestbranding=1&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1`
+    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=0&controls=0&loop=1&playlist=${videoId}&modestbranding=1&showinfo=0&rel=0&iv_load_policy=3&disablekb=1&fs=0&playsinline=1`
     : null;
 
   const getBackdropURL = () => {
@@ -171,145 +172,142 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
 
   return (
     <View className="z-5 center m-0 flex bg-black" style={{ height: height * 0.75 }}>
-      {/* Gradiente overlay */}
-      <>
-        {/* Overlay leve por toda a tela */}
-        <View
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.2)',
-            zIndex: 9, // abaixo do gradiente
-          }}
-          // pointerEvents="box-none"
+      {/* Imagem de fundo sempre visível - quando não há trailer */}
+      {!showVideo && (
+        <ImageBackground
+          source={{ uri: getBackdropURL() }}
+          className="z-1 absolute h-full w-full"
+          onError={() => setBackdropError(true)}
         />
+      )}
 
-        {/* Gradiente forte na parte inferior */}
-        <LinearGradient
-          colors={[
-            'rgba(0, 0, 0, 1)', // fundo forte
-            'rgba(0, 0, 0, 0.9)',
-            'rgba(0, 0, 0, 0.5)',
-            'rgba(0, 0, 0, 0.2)',
-            'rgba(0, 0, 0, 1)', // transparência para transição suave
-          ]}
-          locations={[0, 0.2, 0.4, 0.6, 1]}
-          start={{ x: 0.5, y: 1 }}
-          end={{ x: 0.5, y: 0 }}
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            height: '60%', // ou ajuste como quiser
-            width: '100%',
-            zIndex: 10,
-          }}
-          // pointerEvents="box-none"
-        />
-
-        <LinearGradient
-          colors={[
-            'rgba(0, 0, 0, 0.5)', // topo — levemente escuro
-            'rgba(0, 0, 0, 0.2)', // intermediário
-            'rgba(0, 0, 0, 0.1)', // quase transparente
-            'transparent', // base
-          ]}
-          locations={[0, 0.3, 0.6, 1]}
-          start={{ x: 0.5, y: 0 }}
-          end={{ x: 0.5, y: 1 }}
-          style={{
-            position: 'absolute',
-            top: 0,
-            height: '60%', // você pode ajustar conforme a necessidade
-            width: '100%',
-            zIndex: 30,
-          }}
-          // pointerEvents="box-none"
-        />
-      </>
-
-      <ImageBackground
-        source={{ uri: media.posterURL1 || media.posterURL2 }}
-        className="z-1 absolute h-full w-full"
-        onError={() => setBackdropError(true)}></ImageBackground>
-      <View className=" h-20" />
-
-      {/* Trailer WebView */}
+      {/* Container do trailer com fotos acima e abaixo */}
       {showVideo && youtubeURL && !videoError && (
-        <View className="z-20 mt-5 flex aspect-video w-full overflow-hidden">
-          <WebView
-            source={{ uri: youtubeURL }}
-            className="flex-1 bg-transparent"
-            allowsFullscreenVideo={false}
-            mediaPlaybackRequiresUserAction={false}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            onError={() => setVideoError(true)}
-            scalesPageToFit={true}
-            bounces={false}
-            scrollEnabled={false}
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-          />
+        <View className="z-2 -top-20 absolute h-full w-full flex-1 justify-center">
+          {/* Foto de fundo acima do trailer */}
+          <View className="flex-1">
+            <ImageBackground
+              source={{ uri: getBackdropURL() }}
+              className="h-full w-full"
+              onError={() => setBackdropError(true)}
+            />
+          </View>
+
+          {/* Trailer em aspect-video */}
+          <View className="aspect-video w-full overflow-hidden">
+            <WebView
+              source={{ uri: youtubeURL }}
+              className="flex-1 bg-transparent"
+              allowsFullscreenVideo={false}
+              mediaPlaybackRequiresUserAction={false}
+              javaScriptEnabled={true}
+              domStorageEnabled={true}
+              onError={() => setVideoError(true)}
+              scalesPageToFit={true}
+              bounces={false}
+              scrollEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+
+          {/* Foto de fundo abaixo do trailer */}
+          <View className="flex-1">
+            <ImageBackground
+              source={{ uri: getBackdropURL() }}
+              className="h-full w-full"
+              onError={() => setBackdropError(true)}
+            />
+          </View>
         </View>
       )}
 
-      <ImageBackground
-        source={{ uri: media.backdropURL1 || media.backdropURL2 }}
-        className={`aspect-video ${showVideo ? '' : 'hidden'}`}
-        onError={() => setBackdropError(true)}>
-        {/* Conteúdo principal */}
-        <View className="bottom-2 left-0 right-0 z-10 flex justify-center px-5 pb-10">
-          {/* Logo ou título */}
-          <View className="w-full">{renderLogoOrTitle()}</View>
+      {/* Overlay leve por toda a tela - sempre visível */}
+      <View
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.2)',
+          zIndex: 9,
+        }}
+      />
 
-          {/* Informações */}
-          <View className=" items-center justify-center">
-            <Text className="mb-3 text-sm font-medium text-white">{renderMediaInfo()}</Text>
-          </View>
+      {/* Gradiente forte na parte inferior - sempre visível */}
+      <LinearGradient
+        colors={[
+          'rgba(0, 0, 0, 1)', // fundo forte
+          'rgba(0, 0, 0, 0.9)',
+          'rgba(0, 0, 0, 0.5)',
+          'rgba(0, 0, 0, 0.2)',
+          'rgba(0, 0, 0, 0)', // transparência para transição suave
+        ]}
+        locations={[0, 0.2, 0.4, 0.6, 1]}
+        start={{ x: 0.5, y: 1 }}
+        end={{ x: 0.5, y: 0 }}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          height: '60%',
+          width: '100%',
+          zIndex: 10,
+        }}
+        pointerEvents="none"
+      />
 
-          {/* Botões principais */}
-          <View className="flex-row items-center justify-between">
-            {/* Botão Minha Lista - Apenas ícone */}
-            <TouchableOpacity
-              className="h-11 w-11 items-center justify-center rounded-full bg-gray-600/70"
-              onPress={handleMyList}
-              disabled={isLoading}
-              activeOpacity={0.8}>
-              <Icon name={isInMyList ? 'check' : 'add'} size={20} color="#fff" />
-            </TouchableOpacity>
 
-            {/* Botões centrais - Play e Info colados */}
-            <View className="flex-row items-center">
-              {/* Botão Play */}
-              <TouchableOpacity
-                className="flex-row items-center justify-center rounded-l bg-white px-5 py-3"
-                onPress={handlePlay}
-                activeOpacity={0.9}>
-                <Icon name="play-arrow" size={24} color="#000" />
-                <Text className="ml-2 text-base font-semibold text-black">Assistir</Text>
-              </TouchableOpacity>
 
-              {/* Botão Info - Colado com Play */}
-              {onInfo && (
-                <TouchableOpacity
-                  className="items-center justify-center rounded-r-md border-2 border-white bg-gray-600/70 px-4 py-3"
-                  onPress={onInfo}
-                  activeOpacity={0.8}>
-                  <Icon name="info-outline" size={20} color="#fff" />
-                </TouchableOpacity>
-              )}
-            </View>
+      {/* Conteúdo principal - sempre visível */}
+      <View className="absolute bottom-14 left-0 right-0 z-40 flex justify-center px-5 pb-10">
+        {/* Logo ou título */}
+        <View className="w-full">{renderLogoOrTitle()}</View>
 
-            {/* Botão Trailer - Apenas ícone */}
-            <TouchableOpacity
-              className="h-11 w-11 items-center justify-center rounded-full bg-gray-600/70"
-              onPress={() => setShowVideo(!showVideo)}
-              activeOpacity={0.8}>
-              <Icon name="movie" size={20} color="#fff" />
-            </TouchableOpacity>
-          </View>
+        {/* Informações */}
+        <View className="items-center justify-center">
+          <Text className="mb-3 text-sm font-medium text-white">{renderMediaInfo()}</Text>
         </View>
-      </ImageBackground>
+
+        {/* Botões principais */}
+        <View className="flex-row items-center justify-between">
+          {/* Botão Minha Lista - Apenas ícone */}
+          <TouchableOpacity
+            className="h-11 w-11 items-center justify-center rounded-full bg-gray-600/70"
+            onPress={handleMyList}
+            disabled={isLoading}
+            activeOpacity={0.8}>
+            <Icon name={isInMyList ? 'check' : 'add'} size={20} color="#fff" />
+          </TouchableOpacity>
+
+          {/* Botões centrais - Play e Info colados */}
+          <View className="flex-row items-center">
+            {/* Botão Play */}
+            <TouchableOpacity
+              className="flex-row items-center justify-center rounded-l bg-white px-5 py-3"
+              onPress={handlePlay}
+              activeOpacity={0.9}>
+              <Icon name="play-arrow" size={24} color="#000" />
+              <Text className="ml-2 text-base font-semibold text-black">Assistir</Text>
+            </TouchableOpacity>
+
+            {/* Botão Info - Colado com Play */}
+            {onInfo && (
+              <TouchableOpacity
+                className="items-center justify-center rounded-r-md border-2 border-white bg-gray-600/70 px-4 py-3"
+                onPress={onInfo}
+                activeOpacity={0.8}>
+                <Icon name="info-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Botão Som - Controla trailer */}
+          <TouchableOpacity
+            className="h-11 w-11 items-center justify-center rounded-full bg-gray-600/70"
+            onPress={() => setShowVideo(!showVideo)}
+            activeOpacity={0.8}>
+            <Icon name={showVideo ? 'volume-off' : 'volume-up'} size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 };

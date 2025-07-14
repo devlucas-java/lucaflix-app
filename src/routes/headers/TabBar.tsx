@@ -126,12 +126,12 @@ export const TabBar: React.FC<TabBarProps> = memo(({
     <View className="absolute bottom-0 left-0 right-0 z-50">
       {/* Overlay otimizado */}
       <View 
-        className="absolute inset-0 bg-black/30"
+        className="absolute inset-0 bg-black/60"
         style={{ backdropFilter: 'blur(10px)' }}
       />
       
       <SafeAreaView className="bg-transparent">
-        <View className="flex-row h-18 px-2 py-2 bg-transparent">
+        <View className="flex-row h-16 px-2 py-2 bg-transparent">
           {state.routes.map((route: any, index: number) => {
             const { options } = descriptors[route.key] || {};
             const isFocused = currentRoute ? 
